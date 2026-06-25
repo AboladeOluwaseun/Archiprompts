@@ -33,9 +33,10 @@ export async function GET() {
   }
 
   const { data, error } = await sb
-    .from<OptionRow>("prompt_options")
-    .select("field,label,value,option_type,sort_order")
-    .order("sort_order", { ascending: true });
+  .from("prompt_options")
+  .select("field,label,value,option_type,sort_order")
+  .order("sort_order", { ascending: true })
+  as { data: OptionRow[] | null; error: unknown };
 
   if (error || !data) {
     return NextResponse.json(DEFAULT_BUILDER_OPTIONS);
