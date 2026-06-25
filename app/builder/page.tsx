@@ -459,14 +459,14 @@ export default function Home() {
                   value={form.buildingType}
                   onChange={(v) => updateField("buildingType", v)}
                   options={buildingTypes}
-                  section="buildingTypes"
+                  // section="buildingTypes"
                 />
                 <SelectField
                   label="Architectural Style"
                   value={form.archStyle}
                   onChange={(v) => updateField("archStyle", v)}
                   options={archStyles}
-                  section="archStyles"
+                  // section="archStyles"
                 />
               </div>
 
@@ -476,7 +476,7 @@ export default function Home() {
                   value={form.floors}
                   onChange={(v) => updateField("floors", v)}
                   options={floors}
-                  section="floors"
+                  // section="floors"
                 />
                 <div className="fg">
                   <div className="toggle-row">
@@ -547,14 +547,14 @@ export default function Home() {
                   value={form.wallFinish}
                   onChange={(v) => updateField("wallFinish", v)}
                   options={wallFinishes}
-                  section="wallFinishes"
+                  // section="wallFinishes"
                 />
                 <SelectField
                   label="Accent Material"
                   value={form.accentMat}
                   onChange={(v) => updateField("accentMat", v)}
                   options={accentMaterials}
-                  section="accentMaterials"
+                  // section="accentMaterials"
                 />
               </div>
             </div>
@@ -591,28 +591,28 @@ export default function Home() {
                     value={form.finWidth}
                     onChange={(v) => updateField("finWidth", v)}
                     options={finWidths}
-                    section="finWidths"
+                    // section="finWidths"
                   />
                   <SelectField
                     label="Fin Height"
                     value={form.finHeight}
                     onChange={(v) => updateField("finHeight", v)}
                     options={finHeights}
-                    section="finHeights"
+                    // section="finHeights"
                   />
                   <SelectField
                     label="Fin Material"
                     value={form.finMaterial}
                     onChange={(v) => updateField("finMaterial", v)}
                     options={finMaterials}
-                    section="finMaterials"
+                    // section="finMaterials"
                   />
                   <SelectField
                     label="Fin Spacing"
                     value={form.finSpacing}
                     onChange={(v) => updateField("finSpacing", v)}
                     options={finSpacings}
-                    section="finSpacings"
+                    // section="finSpacings"
                   />
                 </div>
               )}
@@ -624,14 +624,14 @@ export default function Home() {
                     value={form.slabDepth}
                     onChange={(v) => updateField("slabDepth", v)}
                     options={slabDepths}
-                    section="slabDepths"
+                    // section="slabDepths"
                   />
                   <SelectField
                     label="Slab Finish"
                     value={form.slabFinish}
                     onChange={(v) => updateField("slabFinish", v)}
                     options={slabFinishes}
-                    section="slabFinishes"
+                    // section="slabFinishes"
                   />
                 </div>
               )}
@@ -654,14 +654,14 @@ export default function Home() {
                   value={form.windows}
                   onChange={(v) => updateField("windows", v)}
                   options={windowTypes}
-                  section="windowTypes"
+                  // section="windowTypes"
                 />
                 <SelectField
                   label="Glazing Tint"
                   value={form.glazingTint}
                   onChange={(v) => updateField("glazingTint", v)}
                   options={glazingTints}
-                  section="glazingTints"
+                  // section="glazingTints"
                 />
               </div>
             </div>
@@ -711,14 +711,14 @@ export default function Home() {
                   value={form.landscape}
                   onChange={(v) => updateField("landscape", v)}
                   options={landscapes}
-                  section="landscapes"
+                  // section="landscapes"
                 />
                 <SelectField
                   label="Camera Angle"
                   value={form.cameraAngle}
                   onChange={(v) => updateField("cameraAngle", v)}
                   options={cameraAngles}
-                  section="cameraAngles"
+                  // section="cameraAngles"
                 />
               </div>
             </div>
