@@ -428,7 +428,7 @@ export default function Home() {
                 program-to-massing workflow. Keep the AI aligned to context,
                 form, materiality, lighting, and camera in one focused builder.
               </p>
-              <div
+              {/* <div
                 style={{
                   marginTop: 14,
                   padding: "12px 16px",
@@ -439,7 +439,7 @@ export default function Home() {
                 }}
               >
                 Auth debug: {sessionDebug}
-              </div>
+              </div> */}
             </div>
 
             <div className="builder-card">
