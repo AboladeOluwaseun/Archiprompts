@@ -32,11 +32,13 @@ export async function GET() {
     return NextResponse.json(DEFAULT_BUILDER_OPTIONS);
   }
 
-  const { data, error } = await sb
+  const result = await sb
   .from("prompt_options")
   .select("field,label,value,option_type,sort_order")
-  .order("sort_order", { ascending: true })
-  as { data: OptionRow[] | null; error: unknown };
+  .order("sort_order", { ascending: true });
+
+const data = result.data as OptionRow[] | null;
+const error = result.error;
 
   if (error || !data) {
     return NextResponse.json(DEFAULT_BUILDER_OPTIONS);
