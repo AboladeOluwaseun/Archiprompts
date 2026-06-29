@@ -27,7 +27,7 @@ export default function ChipGroup({ options, selected, onToggle, multi }: ChipGr
 
   return (
     <div className="chips">
-      {options.map((o) => (
+      {(options || []).map((o) => (
         <div
           key={o.value}
           className={`chip${isActive(o.value) ? ' active' : ''}`}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from "@/lib/supabase";
 
 const SECTIONS: Record<string, "select" | "chip"> = {
+  // Exterior
   buildingTypes: "select",
   archStyles: "select",
   floors: "select",
@@ -21,9 +22,25 @@ const SECTIONS: Record<string, "select" | "chip"> = {
   lightingMoods: "chip",
   landscapes: "select",
   cameraAngles: "select",
+  // Interior
+  roomTypes: "select",
+  interiorStyles: "chip",
+  furnitureLayouts: "select",
+  interiorWallFinishes: "select",
+  floorMaterials: "select",
+  ceilingTypes: "select",
+  interiorLightings: "select",
+  colorTemps: "chip",
+  interiorCameraAngles: "select",
+  timeOfDays: "chip",
+  windowViews: "select",
+  windowTreatments: "select",
+  interiorPlants: "select",
+  artStyles: "select",
 };
 
 const SECTION_LABELS: Record<string, string> = {
+  // Exterior
   buildingTypes: "Building Type",
   archStyles: "Architectural Style",
   floors: "Number of Floors",
@@ -43,6 +60,18 @@ const SECTION_LABELS: Record<string, string> = {
   lightingMoods: "Lighting Mood",
   landscapes: "Landscape Context",
   cameraAngles: "Camera Angle",
+  // Interior
+  roomTypes: "Room Type",
+  interiorStyles: "Interior Design Style",
+  furnitureLayouts: "Furniture Layout",
+  interiorWallFinishes: "Interior Wall Finish",
+  floorMaterials: "Floor Material",
+  ceilingTypes: "Ceiling Type",
+  interiorLightings: "Interior Lighting",
+  colorTemps: "Colour Temperature",
+  interiorCameraAngles: "Interior Camera Angle",
+  timeOfDays: "Time of Day",
+  windowViews: "Window / Exterior View",
 };
 
 // Simple in-memory cache & rate-limit (per server instance)

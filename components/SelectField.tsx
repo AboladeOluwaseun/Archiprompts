@@ -18,14 +18,14 @@ export default function SelectField({
   onChange,
   options,
 }: SelectFieldProps) {
-  const [localOptions, setLocalOptions] = useState<SelectOption[]>(options);
+  const [localOptions, setLocalOptions] = useState<SelectOption[]>(options || []);
   const [open, setOpen] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [customInput, setCustomInput] = useState("");
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    setLocalOptions(options);
+    setLocalOptions(options || []);
   }, [options]);
 
   const handleSelect = (v: string) => {
@@ -43,7 +43,7 @@ export default function SelectField({
   };
 
   useEffect(() => {
-    const selected = localOptions.find((option) => option.value === value);
+    const selected = (localOptions || []).find((option) => option.value === value);
     if (selected) {
       setShowCustom(false);
       setCustomInput("");
@@ -58,9 +58,9 @@ export default function SelectField({
     };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
+  }, [localOptions, value]);
 
-  const selectedOption = localOptions.find((option) => option.value === value);
+  const selectedOption = (localOptions || []).find((option) => option.value === value);
   const selectedLabel =
     selectedOption?.label ||
     (showCustom && customInput

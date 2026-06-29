@@ -1,3 +1,6 @@
+// ─── Builder Mode ────────────────────────────────────────────────
+export type BuilderMode = 'exterior' | 'interior';
+
 // ─── AI Tool Types ──────────────────────────────────────────────
 export type AiTool = 'chatgpt' | 'midjourney' | 'stable' | 'firefly' | 'nanobanana';
 
@@ -26,58 +29,82 @@ export type FacadeElementKey =
 
 // ─── Form Data ──────────────────────────────────────────────────
 export interface PromptFormData {
-  // Section 01 — Project Basics
+  // ── Shared ──────────────────────────────────────────────────
+  builderMode: BuilderMode;
+  revitMode: boolean;
+  aiTool: AiTool;
+  extraNotes: string;
+
+  // ── Exterior: Section 01 — Project Basics ───────────────────
   buildingType: string;
   archStyle: string;
   floors: string;
-  revitMode: boolean;
 
-  // Section 02 — Building Form & Silhouette
+  // ── Exterior: Section 02 — Building Form & Silhouette ───────
   buildingForm: string;
   massingNotes: string;
 
-  // Section 03 — Materials & Facade
+  // ── Exterior: Section 03 — Materials & Facade ───────────────
   wallFinish: string;
   accentMat: string;
 
-  // Section 04 — Facade Elements (multi-select)
+  // ── Exterior: Section 04 — Facade Elements (multi-select) ───
   facadeElements: string[];
 
-  // Section 04 — Fin Details (conditional)
+  // ── Exterior: Section 04 — Fin Details (conditional) ────────
   finWidth: string;
   finHeight: string;
   finMaterial: string;
   finSpacing: string;
 
-  // Section 04 — Slab Details (conditional)
+  // ── Exterior: Section 04 — Slab Details (conditional) ───────
   slabDepth: string;
   slabFinish: string;
 
-  // Section 05 — Glazing & Openings
+  // ── Exterior: Section 05 — Glazing & Openings ───────────────
   windows: string;
   glazingTint: string;
 
-  // Section 06 — Roof
+  // ── Exterior: Section 06 — Roof ─────────────────────────────
   roofStyle: string;
 
-  // Section 07 — Lighting & Environment
+  // ── Exterior: Section 07 — Lighting & Environment ───────────
   lightMood: string;
   landscape: string;
   cameraAngle: string;
 
-  // Section 08 — AI Tool
-  aiTool: AiTool;
+  // ── Interior: Section 01 — Room & Style ─────────────────────
+  roomType: string;
+  interiorStyle: string;
 
-  // Section 09 — Additional Notes
-  extraNotes: string;
+  // ── Interior: Section 02 — Materials & Furniture ────────────
+  interiorWallFinish: string;
+  floorMaterial: string;
+  furnitureLayout: string;
+
+  // ── Interior: Section 03 — Ceiling & Lighting ───────────────
+  ceilingType: string;
+  interiorLighting: string;
+  colorTemp: string;
+
+  // ── Interior: Section 04 — Camera & Atmosphere ──────────────
+  interiorCameraAngle: string;
+  timeOfDay: string;
+  windowView: string;
 }
 
 // ─── Defaults ───────────────────────────────────────────────────
 export const DEFAULT_FORM_DATA: PromptFormData = {
+  // Shared
+  builderMode: 'exterior',
+  revitMode: true,
+  aiTool: 'chatgpt',
+  extraNotes: '',
+
+  // Exterior
   buildingType: '',
   archStyle: 'modern-classic Nigerian residential',
   floors: 'two storey',
-  revitMode: false,
   buildingForm: 'rectangular box massing, straight orthogonal facades on all sides',
   massingNotes: '',
   wallFinish: 'smooth off-white painted render',
@@ -95,6 +122,17 @@ export const DEFAULT_FORM_DATA: PromptFormData = {
   lightMood: 'bright West African midday sun, clear blue tropical sky, sharp crisp shadows cast by facade elements',
   landscape: 'urban Lagos / Accra commercial district street context, clean wide concrete pavement, mature tropical trees lining the street (slightly blurred), parked premium vehicles on street (slightly blurred), other commercial buildings in background (soft focus)',
   cameraAngle: 'front elevation view, straight-on composition, eye-level, 35mm lens',
-  aiTool: 'chatgpt',
-  extraNotes: '',
+
+  // Interior
+  roomType: 'luxury living room',
+  interiorStyle: 'Minimal Warm Contemporary',
+  interiorWallFinish: 'smooth lime plaster, micro-texture variation, warm white tone',
+  floorMaterial: 'natural oak hardwood flooring, wide planks, matte finish, subtle grain variation',
+  furnitureLayout: 'open-plan seating arrangement, modular sofa, low coffee table, accent armchair',
+  ceilingType: 'smooth plastered flat ceiling with recessed LED cove lighting',
+  interiorLighting: 'soft natural daylight from full-height windows supplemented by warm recessed LED downlights',
+  colorTemp: 'mixed daylight + warm artificial (3000K–3500K)',
+  interiorCameraAngle: 'eye-level interior view, 24–35mm lens, 1.2–1.5m camera height, verticals perfectly straight',
+  timeOfDay: 'soft daylight',
+  windowView: 'lush tropical garden visible through floor-to-ceiling glazing',
 };

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
-import { PromptFormData, AiTool, DEFAULT_FORM_DATA } from "@/lib/types";
+import { PromptFormData, AiTool, BuilderMode, DEFAULT_FORM_DATA } from "@/lib/types";
 import { buildPrompt } from "@/lib/promptEngine";
 import { getSupabaseBrowser } from "@/lib/supabase";
 import { DEFAULT_BUILDER_OPTIONS, BuilderOptions } from "@/lib/formOptions";
@@ -44,6 +44,8 @@ export default function Home() {
   const [generatingSection, setGeneratingSection] = useState<
     keyof BuilderOptions | null
   >(null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
   const {
     buildingTypes,
@@ -65,7 +67,21 @@ export default function Home() {
     lightingMoods,
     landscapes,
     cameraAngles,
+    // Interior
+    roomTypes,
+    interiorStyles,
+    furnitureLayouts,
+    interiorWallFinishes,
+    floorMaterials,
+    ceilingTypes,
+    interiorLightings,
+    colorTemps,
+    interiorCameraAngles,
+    timeOfDays,
+    windowViews,
   } = options;
+
+  const isInterior = form.builderMode === 'interior';
 
   useEffect(() => {
     const sb = getSupabaseBrowser();
@@ -162,6 +178,16 @@ export default function Home() {
     }
   }, [userEmail]);
 
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
   // ── Form Helpers ──────────────────────────────────────────────
   const updateField = useCallback(
     <K extends keyof PromptFormData>(key: K, value: PromptFormData[K]) => {
@@ -171,7 +197,7 @@ export default function Home() {
   );
 
   const toggleChip = useCallback(
-    (key: "buildingForm" | "roofStyle" | "lightMood", value: string) => {
+    (key: "buildingForm" | "roofStyle" | "lightMood" | "interiorStyle" | "colorTemp" | "timeOfDay", value: string) => {
       setForm((prev) => ({ ...prev, [key]: value }));
     },
     [],
@@ -406,13 +432,62 @@ export default function Home() {
                   ? "Pro Active"
                   : "Upgrade"}
             </button>
-            <button
-              className="avatar-btn"
-              title={userEmail ?? "Continue as guest"}
-              onClick={() => !userEmail && setShowAuth(true)}
-            >
-              {userEmail ? userEmail.charAt(0).toUpperCase() : "G"}
-            </button>
+            <div className="profile-container" ref={profileMenuRef} style={{ position: "relative" }}>
+              <button
+                className="avatar-btn"
+                title={userEmail ?? "Continue as guest"}
+                onClick={() => {
+                  if (!userEmail) {
+                    setShowAuth(true);
+                  } else {
+                    setShowProfileMenu((prev) => !prev);
+                  }
+                }}
+              >
+                {userEmail ? userEmail.charAt(0).toUpperCase() : "G"}
+              </button>
+              {showProfileMenu && userEmail && (
+                <div className="profile-dropdown">
+                  <div className="profile-dropdown-arrow" />
+                  <div className="profile-dropdown-user">
+                    <div className="profile-dropdown-avatar">
+                      {userEmail.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="profile-dropdown-info">
+                      <span className="profile-email">{userEmail}</span>
+                      <span className="profile-plan-badge">{isPro ? "PRO MEMBER" : "FREE ACCOUNT"}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="profile-dropdown-stats">
+                    <div className="profile-stat-row">
+                      <span>Prompts used</span>
+                      <strong>{isPro ? "Unlimited" : `${used} / ${FREE_LIMIT}`}</strong>
+                    </div>
+                  </div>
+                  
+                  <button
+                    className="profile-dropdown-signout"
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      const sb = getSupabaseBrowser();
+                      if (sb) {
+                        sb.auth.signOut().then(() => {
+                          setUserEmail(null);
+                          setIsPro(false);
+                          setUsed(0);
+                        });
+                      }
+                    }}
+                  >
+                    <svg className="signout-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    Sign Out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -428,305 +503,476 @@ export default function Home() {
                 program-to-massing workflow. Keep the AI aligned to context,
                 form, materiality, lighting, and camera in one focused builder.
               </p>
-              {/* <div
-                style={{
-                  marginTop: 14,
-                  padding: "12px 16px",
-                  borderRadius: 12,
-                  background: "rgba(255,255,255,0.05)",
-                  color: "var(--muted)",
-                  fontSize: 13,
-                }}
-              >
-                Auth debug: {sessionDebug}
-              </div> */}
             </div>
 
-            <div className="builder-card">
-              <div className="builder-card-header">
-                <div>
-                  <h2>Block A / Program & Context</h2>
-                  <p>
-                    Define the project program, context, style, and scale for a
-                    strong architectural prompt foundation.
-                  </p>
-                </div>
-              </div>
+            {/* ── MODE SWITCHER ── */}
+            <div className="mode-switcher">
+              <button
+                className={`mode-tab${!isInterior ? ' active' : ''}`}
+                onClick={() => updateField('builderMode', 'exterior' as BuilderMode)}
+              >
+                <span className="mode-tab-icon">🏛️</span>
+                <span className="mode-tab-label">
+                  <span className="mode-tab-name">Exterior</span>
+                  <span className="mode-tab-sub">Facade &amp; Massing</span>
+                </span>
+              </button>
+              <button
+                className={`mode-tab${isInterior ? ' active' : ''}`}
+                onClick={() => updateField('builderMode', 'interior' as BuilderMode)}
+              >
+                <span className="mode-tab-icon">🛋️</span>
+                <span className="mode-tab-label">
+                  <span className="mode-tab-name">Interior</span>
+                  <span className="mode-tab-sub">Rooms &amp; Spaces</span>
+                </span>
+              </button>
+            </div>
 
-              <div className="two-col">
-                <SelectField
-                  label="Building Type"
-                  value={form.buildingType}
-                  onChange={(v) => updateField("buildingType", v)}
-                  options={buildingTypes}
-                  // section="buildingTypes"
-                />
-                <SelectField
-                  label="Architectural Style"
-                  value={form.archStyle}
-                  onChange={(v) => updateField("archStyle", v)}
-                  options={archStyles}
-                  // section="archStyles"
-                />
-              </div>
-
-              <div className="two-col">
-                <SelectField
-                  label="Number of Floors"
-                  value={form.floors}
-                  onChange={(v) => updateField("floors", v)}
-                  options={floors}
-                  // section="floors"
-                />
-                <div className="fg">
-                  <div className="toggle-row">
-                    <label className="toggle">
-                      <input
-                        type="checkbox"
-                        checked={form.revitMode}
-                        onChange={(e) =>
-                          updateField("revitMode", e.target.checked)
-                        }
-                      />
-                      <span className="toggle-slider" />
-                    </label>
+            {!isInterior && (
+              <div className="mode-section-fade">
+                <div className="builder-card">
+                  <div className="builder-card-header">
                     <div>
-                      <div className="toggle-label">Revit Model Mode</div>
-                      <div className="toggle-sub">
-                        Enhanced geometry processing for Revit-aligned prompts.
+                      <h2>Block A / Program &amp; Context</h2>
+                      <p>
+                        Define the project program, context, style, and scale for a
+                        strong architectural prompt foundation.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="two-col">
+                    <SelectField
+                      label="Building Type"
+                      value={form.buildingType}
+                      onChange={(v) => updateField("buildingType", v)}
+                      options={buildingTypes}
+                    />
+                    <SelectField
+                      label="Architectural Style"
+                      value={form.archStyle}
+                      onChange={(v) => updateField("archStyle", v)}
+                      options={archStyles}
+                    />
+                  </div>
+
+                  <div className="two-col">
+                    <SelectField
+                      label="Number of Floors"
+                      value={form.floors}
+                      onChange={(v) => updateField("floors", v)}
+                      options={floors}
+                    />
+                    <div className="fg">
+                      <div className="toggle-row">
+                        <label className="toggle">
+                          <input
+                            type="checkbox"
+                            checked={form.revitMode}
+                            onChange={(e) =>
+                              updateField("revitMode", e.target.checked)
+                            }
+                          />
+                          <span className="toggle-slider" />
+                        </label>
+                        <div>
+                          <div className="toggle-label">Revit Model Mode</div>
+                          <div className="toggle-sub">
+                            Enhanced geometry processing for Revit-aligned prompts.
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
 
+                <div className="builder-card">
+                  <div className="builder-card-header">
+                    <div>
+                      <h2>Block B / Massing &amp; Envelope</h2>
+                      <p>
+                        Choose the overall massing, organization, and envelope
+                        strategy that defines the building form.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="fg">
+                    <label>Building Form</label>
+                    <ChipGroup
+                      options={buildingForms}
+                      selected={form.buildingForm}
+                      onToggle={(v) => toggleChip("buildingForm", v)}
+                    />
+                  </div>
+                  <div className="fg">
+                    <label>Geometry Notes</label>
+                    <textarea
+                      placeholder="e.g. building has a recessed entrance portico, double-height lobby, or cantilevered volume..."
+                      value={form.massingNotes}
+                      onChange={(e) => updateField("massingNotes", e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="builder-card">
+                  <div className="builder-card-header">
+                    <div>
+                      <h2>Block C / Materiality &amp; Surface</h2>
+                      <p>
+                        Define the primary façade palette and accent surfaces for
+                        the building envelope.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="two-col">
+                    <SelectField
+                      label="Primary Wall Finish"
+                      value={form.wallFinish}
+                      onChange={(v) => updateField("wallFinish", v)}
+                      options={wallFinishes}
+                    />
+                    <SelectField
+                      label="Accent Material"
+                      value={form.accentMat}
+                      onChange={(v) => updateField("accentMat", v)}
+                      options={accentMaterials}
+                    />
+                  </div>
+                </div>
+
+                <div className="builder-card">
+                  <div className="builder-card-header">
+                    <div>
+                      <h2>Block D / Façade Systems</h2>
+                      <p>
+                        Choose visible façade systems and tune vertical shading and
+                        slab expression.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="fg">
+                    <label>Select Facade Elements</label>
+                    <div className="hint">
+                      Vertical fins are locked as SOLID OPAQUE elements to prevent
+                      glass misinterpretation.
+                    </div>
+                    <ChipGroup
+                      options={facadeElements}
+                      selected={form.facadeElements}
+                      onToggle={toggleMultiChip}
+                      multi
+                    />
+                  </div>
+
+                  {hasFins && (
+                    <div className="builder-subgrid">
+                      <SelectField
+                        label="Fin Width"
+                        value={form.finWidth}
+                        onChange={(v) => updateField("finWidth", v)}
+                        options={finWidths}
+                      />
+                      <SelectField
+                        label="Fin Height"
+                        value={form.finHeight}
+                        onChange={(v) => updateField("finHeight", v)}
+                        options={finHeights}
+                      />
+                      <SelectField
+                        label="Fin Material"
+                        value={form.finMaterial}
+                        onChange={(v) => updateField("finMaterial", v)}
+                        options={finMaterials}
+                      />
+                      <SelectField
+                        label="Fin Spacing"
+                        value={form.finSpacing}
+                        onChange={(v) => updateField("finSpacing", v)}
+                        options={finSpacings}
+                      />
+                    </div>
+                  )}
+
+                  {hasSlabs && (
+                    <div className="builder-subgrid">
+                      <SelectField
+                        label="Slab Depth"
+                        value={form.slabDepth}
+                        onChange={(v) => updateField("slabDepth", v)}
+                        options={slabDepths}
+                      />
+                      <SelectField
+                        label="Slab Finish"
+                        value={form.slabFinish}
+                        onChange={(v) => updateField("slabFinish", v)}
+                        options={slabFinishes}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="builder-card">
+                  <div className="builder-card-header">
+                    <div>
+                      <h2>Block E / Glazing &amp; Openings</h2>
+                      <p>
+                        Define window systems and glazing tint to shape facade
+                        transparency and light quality.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="two-col">
+                    <SelectField
+                      label="Window Type"
+                      value={form.windows}
+                      onChange={(v) => updateField("windows", v)}
+                      options={windowTypes}
+                    />
+                    <SelectField
+                      label="Glazing Tint"
+                      value={form.glazingTint}
+                      onChange={(v) => updateField("glazingTint", v)}
+                      options={glazingTints}
+                    />
+                  </div>
+                </div>
+
+                <div className="builder-card">
+                  <div className="builder-card-header">
+                    <div>
+                      <h2>Block F / Roof Form</h2>
+                      <p>
+                        Choose a roof typology that supports the massing and site
+                        strategy.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="fg">
+                    <ChipGroup
+                      options={roofStyles}
+                      selected={form.roofStyle}
+                      onToggle={(v) => toggleChip("roofStyle", v)}
+                    />
+                  </div>
+                </div>
+
+                <div className="builder-card">
+                  <div className="builder-card-header">
+                    <div>
+                      <h2>Block G / Atmosphere &amp; Optics</h2>
+                      <p>
+                        Set the lighting mood, landscape context, and camera angle
+                        to define the final image atmosphere.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="fg">
+                    <label>Lighting Mood</label>
+                    <ChipGroup
+                      options={lightingMoods}
+                      selected={form.lightMood}
+                      onToggle={(v) => toggleChip("lightMood", v)}
+                    />
+                  </div>
+                  <div className="two-col">
+                    <SelectField
+                      label="Landscape / Context"
+                      value={form.landscape}
+                      onChange={(v) => updateField("landscape", v)}
+                      options={landscapes}
+                    />
+                    <SelectField
+                      label="Camera Angle"
+                      value={form.cameraAngle}
+                      onChange={(v) => updateField("cameraAngle", v)}
+                      options={cameraAngles}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ═══════════════ INTERIOR FORM BLOCKS ═══════════════ */}
+            {isInterior && (
+              <div className="mode-section-fade">
+                <div className="builder-card">
+                  <div className="builder-card-header">
+                    <div>
+                      <h2>Block I-A / Room &amp; Style</h2>
+                      <p>
+                        Select the room type and define the interior design
+                        direction for this visualization.
+                      </p>
+                    </div>
+                  </div>
+
+                  {form.revitMode && (
+                    <div className="interior-model-lock-notice">
+                      <strong>⚠ Revit / Model Lock Active</strong>
+                      Upload your Revit or SketchUp model screenshot alongside this prompt.
+                      The geometry lock instruction will be embedded — the AI will preserve
+                      all room proportions, openings, and structural elements exactly as modelled.
+                    </div>
+                  )}
+
+                  <div className="two-col">
+                    <SelectField
+                      label="Room Type"
+                      value={form.roomType}
+                      onChange={(v) => updateField("roomType", v)}
+                      options={roomTypes}
+                    />
+                    <div className="fg">
+                      <div className="toggle-row">
+                        <label className="toggle">
+                          <input
+                            type="checkbox"
+                            checked={form.revitMode}
+                            onChange={(e) =>
+                              updateField("revitMode", e.target.checked)
+                            }
+                          />
+                          <span className="toggle-slider" />
+                        </label>
+                        <div>
+                          <div className="toggle-label">Model Lock Mode</div>
+                          <div className="toggle-sub">
+                            Geometry locked to uploaded Revit / SketchUp model.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="fg">
+                    <label>Interior Design Style</label>
+                    <ChipGroup
+                      options={interiorStyles}
+                      selected={form.interiorStyle}
+                      onToggle={(v) => toggleChip("interiorStyle", v)}
+                    />
+                  </div>
+                </div>
+
+                <div className="builder-card">
+                  <div className="builder-card-header">
+                    <div>
+                      <h2>Block I-B / Materials &amp; Furniture</h2>
+                      <p>
+                        Specify interior surfaces and furniture layout to define
+                        the material character and spatial composition.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="two-col">
+                    <SelectField
+                      label="Interior Wall Finish"
+                      value={form.interiorWallFinish}
+                      onChange={(v) => updateField("interiorWallFinish", v)}
+                      options={interiorWallFinishes}
+                    />
+                    <SelectField
+                      label="Floor Material"
+                      value={form.floorMaterial}
+                      onChange={(v) => updateField("floorMaterial", v)}
+                      options={floorMaterials}
+                    />
+                  </div>
+                  <div className="fg">
+                    <SelectField
+                      label="Furniture Layout"
+                      value={form.furnitureLayout}
+                      onChange={(v) => updateField("furnitureLayout", v)}
+                      options={furnitureLayouts}
+                    />
+                  </div>
+                </div>
+
+                <div className="builder-card">
+                  <div className="builder-card-header">
+                    <div>
+                      <h2>Block I-C / Ceiling &amp; Lighting</h2>
+                      <p>
+                        Configure the ceiling typology, lighting character, and colour
+                        temperature to set the mood of the space.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="two-col">
+                    <SelectField
+                      label="Ceiling Type"
+                      value={form.ceilingType}
+                      onChange={(v) => updateField("ceilingType", v)}
+                      options={ceilingTypes}
+                    />
+                    <SelectField
+                      label="Interior Lighting"
+                      value={form.interiorLighting}
+                      onChange={(v) => updateField("interiorLighting", v)}
+                      options={interiorLightings}
+                    />
+                  </div>
+                  <div className="fg">
+                    <label>Colour Temperature</label>
+                    <ChipGroup
+                      options={colorTemps}
+                      selected={form.colorTemp}
+                      onToggle={(v) => toggleChip("colorTemp", v)}
+                    />
+                  </div>
+                </div>
+
+                <div className="builder-card">
+                  <div className="builder-card-header">
+                    <div>
+                      <h2>Block I-D / Camera &amp; Atmosphere</h2>
+                      <p>
+                        Set the time of day, camera composition, and exterior
+                        view through the windows.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="fg">
+                    <label>Time of Day</label>
+                    <ChipGroup
+                      options={timeOfDays}
+                      selected={form.timeOfDay}
+                      onToggle={(v) => toggleChip("timeOfDay", v)}
+                    />
+                  </div>
+                  <div className="two-col">
+                    <SelectField
+                      label="Camera Angle"
+                      value={form.interiorCameraAngle}
+                      onChange={(v) => updateField("interiorCameraAngle", v)}
+                      options={interiorCameraAngles}
+                    />
+                    <SelectField
+                      label="Window / Exterior View"
+                      value={form.windowView}
+                      onChange={(v) => updateField("windowView", v)}
+                      options={windowViews}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── SHARED: AI Tool + Design Intent ── */}
             <div className="builder-card">
               <div className="builder-card-header">
                 <div>
-                  <h2>Block B / Massing & Envelope</h2>
-                  <p>
-                    Choose the overall massing, organization, and envelope
-                    strategy that defines the building form.
-                  </p>
-                </div>
-              </div>
-
-              <div className="fg">
-                <label>Building Form</label>
-                <ChipGroup
-                  options={buildingForms}
-                  selected={form.buildingForm}
-                  onToggle={(v) => toggleChip("buildingForm", v)}
-                />
-              </div>
-              <div className="fg">
-                <label>Geometry Notes</label>
-                <textarea
-                  placeholder="e.g. building has a recessed entrance portico, double-height lobby, or cantilevered volume..."
-                  value={form.massingNotes}
-                  onChange={(e) => updateField("massingNotes", e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="builder-card">
-              <div className="builder-card-header">
-                <div>
-                  <h2>Block C / Materiality & Surface</h2>
-                  <p>
-                    Define the primary façade palette and accent surfaces for
-                    the building envelope.
-                  </p>
-                </div>
-              </div>
-
-              <div className="two-col">
-                <SelectField
-                  label="Primary Wall Finish"
-                  value={form.wallFinish}
-                  onChange={(v) => updateField("wallFinish", v)}
-                  options={wallFinishes}
-                  // section="wallFinishes"
-                />
-                <SelectField
-                  label="Accent Material"
-                  value={form.accentMat}
-                  onChange={(v) => updateField("accentMat", v)}
-                  options={accentMaterials}
-                  // section="accentMaterials"
-                />
-              </div>
-            </div>
-
-            <div className="builder-card">
-              <div className="builder-card-header">
-                <div>
-                  <h2>Block D / Façade Systems</h2>
-                  <p>
-                    Choose visible façade systems and tune vertical shading and
-                    slab expression.
-                  </p>
-                </div>
-              </div>
-
-              <div className="fg">
-                <label>Select Facade Elements</label>
-                <div className="hint">
-                  Vertical fins are locked as SOLID OPAQUE elements to prevent
-                  glass misinterpretation.
-                </div>
-                <ChipGroup
-                  options={facadeElements}
-                  selected={form.facadeElements}
-                  onToggle={toggleMultiChip}
-                  multi
-                />
-              </div>
-
-              {hasFins && (
-                <div className="builder-subgrid">
-                  <SelectField
-                    label="Fin Width"
-                    value={form.finWidth}
-                    onChange={(v) => updateField("finWidth", v)}
-                    options={finWidths}
-                    // section="finWidths"
-                  />
-                  <SelectField
-                    label="Fin Height"
-                    value={form.finHeight}
-                    onChange={(v) => updateField("finHeight", v)}
-                    options={finHeights}
-                    // section="finHeights"
-                  />
-                  <SelectField
-                    label="Fin Material"
-                    value={form.finMaterial}
-                    onChange={(v) => updateField("finMaterial", v)}
-                    options={finMaterials}
-                    // section="finMaterials"
-                  />
-                  <SelectField
-                    label="Fin Spacing"
-                    value={form.finSpacing}
-                    onChange={(v) => updateField("finSpacing", v)}
-                    options={finSpacings}
-                    // section="finSpacings"
-                  />
-                </div>
-              )}
-
-              {hasSlabs && (
-                <div className="builder-subgrid">
-                  <SelectField
-                    label="Slab Depth"
-                    value={form.slabDepth}
-                    onChange={(v) => updateField("slabDepth", v)}
-                    options={slabDepths}
-                    // section="slabDepths"
-                  />
-                  <SelectField
-                    label="Slab Finish"
-                    value={form.slabFinish}
-                    onChange={(v) => updateField("slabFinish", v)}
-                    options={slabFinishes}
-                    // section="slabFinishes"
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="builder-card">
-              <div className="builder-card-header">
-                <div>
-                  <h2>Block E / Glazing & Openings</h2>
-                  <p>
-                    Define window systems and glazing tint to shape facade
-                    transparency and light quality.
-                  </p>
-                </div>
-              </div>
-
-              <div className="two-col">
-                <SelectField
-                  label="Window Type"
-                  value={form.windows}
-                  onChange={(v) => updateField("windows", v)}
-                  options={windowTypes}
-                  // section="windowTypes"
-                />
-                <SelectField
-                  label="Glazing Tint"
-                  value={form.glazingTint}
-                  onChange={(v) => updateField("glazingTint", v)}
-                  options={glazingTints}
-                  // section="glazingTints"
-                />
-              </div>
-            </div>
-
-            <div className="builder-card">
-              <div className="builder-card-header">
-                <div>
-                  <h2>Block F / Roof Form</h2>
-                  <p>
-                    Choose a roof typology that supports the massing and site
-                    strategy.
-                  </p>
-                </div>
-              </div>
-
-              <div className="fg">
-                <ChipGroup
-                  options={roofStyles}
-                  selected={form.roofStyle}
-                  onToggle={(v) => toggleChip("roofStyle", v)}
-                />
-              </div>
-            </div>
-
-            <div className="builder-card">
-              <div className="builder-card-header">
-                <div>
-                  <h2>Block G / Atmosphere & Optics</h2>
-                  <p>
-                    Set the lighting mood, landscape context, and camera angle
-                    to define the final image atmosphere.
-                  </p>
-                </div>
-              </div>
-
-              <div className="fg">
-                <label>Lighting Mood</label>
-                <ChipGroup
-                  options={lightingMoods}
-                  selected={form.lightMood}
-                  onToggle={(v) => toggleChip("lightMood", v)}
-                />
-              </div>
-              <div className="two-col">
-                <SelectField
-                  label="Landscape / Context"
-                  value={form.landscape}
-                  onChange={(v) => updateField("landscape", v)}
-                  options={landscapes}
-                  // section="landscapes"
-                />
-                <SelectField
-                  label="Camera Angle"
-                  value={form.cameraAngle}
-                  onChange={(v) => updateField("cameraAngle", v)}
-                  options={cameraAngles}
-                  // section="cameraAngles"
-                />
-              </div>
-            </div>
-
-            <div className="builder-card">
-              <div className="builder-card-header">
-                <div>
-                  <h2>Block H / Output & AI Target</h2>
+                  <h2>Block H / Output &amp; AI Target</h2>
                   <p>
                     Choose the output style and target AI tool for the final
                     prompt format.
@@ -749,7 +995,7 @@ export default function Home() {
             <div className="builder-card">
               <div className="builder-card-header">
                 <div>
-                  <h2>Block F / Design Intent</h2>
+                  <h2>Design Intent &amp; Notes</h2>
                   <p>
                     Add optional narrative, client requirements, or constraints
                     to sharpen the prompt toward your design goals.
@@ -759,7 +1005,10 @@ export default function Home() {
 
               <div className="fg">
                 <textarea
-                  placeholder="Specify atmospheric conditions, context, or site-specific requirements..."
+                  placeholder={isInterior
+                    ? "Specify atmosphere, client brief, special material requirements, or spatial sequence notes..."
+                    : "Specify atmospheric conditions, context, or site-specific requirements..."
+                  }
                   value={form.extraNotes}
                   onChange={(e) => updateField("extraNotes", e.target.value)}
                   rows={4}
@@ -810,8 +1059,8 @@ export default function Home() {
               <h3>Membership Status</h3>
               <p>
                 {isPro
-                  ? "Pro account active — unlimited rendering prompts and access to the full command set."
-                  : "Free account — limited to 3 prompts. Upgrade for unlimited prompt generation and premium facade controls."}
+                  ? `Pro account active — unlimited ${isInterior ? 'interior' : 'exterior'} rendering prompts and access to the full command set.`
+                  : `Free account — limited to 3 prompts. Upgrade for unlimited prompt generation and premium ${isInterior ? 'interior' : 'facade'} controls.`}
               </p>
               <div className="status-row">
                 <span>Prompt allowance</span>
@@ -819,10 +1068,16 @@ export default function Home() {
                   {isPro ? "Unlimited" : `${remaining} / ${FREE_LIMIT}`}
                 </strong>
               </div>
+              <div className="status-row" style={{ marginTop: 10 }}>
+                <span>Active mode</span>
+                <strong style={{ textTransform: 'capitalize' }}>
+                  {form.builderMode} render
+                </strong>
+              </div>
               {form.revitMode && (
                 <div className="builder-warning">
-                  ⚠ REVIT MODE ACTIVE: Upload your Revit screenshot alongside
-                  this prompt for optimal structural alignment.
+                  ⚠ {isInterior ? 'MODEL LOCK ACTIVE' : 'REVIT MODE ACTIVE'}: Upload your model screenshot alongside
+                  this prompt for optimal {isInterior ? 'spatial geometry' : 'structural'} alignment.
                 </div>
               )}
             </div>

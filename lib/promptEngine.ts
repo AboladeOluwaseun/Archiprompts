@@ -12,6 +12,16 @@
 import { PromptFormData } from './types';
 
 export function buildPrompt(data: PromptFormData): string {
+  // ── Route by mode ─────────────────────────────────────────────
+  if (data.builderMode === 'interior') {
+    return buildInteriorPrompt(data);
+  }
+  return buildExteriorPrompt(data);
+}
+
+// ─── EXTERIOR PROMPT ENGINE ──────────────────────────────────────
+
+function buildExteriorPrompt(data: PromptFormData): string {
   const {
     buildingType,
     archStyle,
@@ -160,6 +170,104 @@ ABSOLUTE RULES:
 • Fins are SOLID — do not render as glass
 • No cartoon or illustration style
 • No watermarks or text in the image${extraNotes ? '\n\nADDITIONAL NOTES:\n' + extraNotes : ''}${neg}${toolSuf}`;
+
+  return prompt;
+}
+
+// ─── INTERIOR PROMPT ENGINE ──────────────────────────────────────
+// Implements the Page 10 interior residential model lock render system.
+
+function buildInteriorPrompt(data: PromptFormData): string {
+  const {
+    roomType,
+    interiorStyle,
+    interiorWallFinish,
+    floorMaterial,
+    furnitureLayout,
+    ceilingType,
+    interiorLighting,
+    colorTemp,
+    interiorCameraAngle,
+    timeOfDay,
+    windowView,
+    revitMode,
+    aiTool,
+    extraNotes,
+  } = data;
+
+  // ── Tool prefix / suffix ──────────────────────────────────────
+  let toolPre = '';
+  let toolSuf = '';
+  let neg = '';
+
+  if (aiTool === 'midjourney') {
+    toolPre = '/imagine ';
+    toolSuf = '\n\n--ar 16:9 --v 6.1 --style raw --q 2';
+  }
+
+  if (aiTool === 'stable') {
+    neg =
+      '\n\nNEGATIVE PROMPT:\n' +
+      'cartoon, illustration, sketch, blurry, plastic surfaces, flat lighting, ' +
+      'overexposed, grey muddy render, watermark, text, unrealistic proportions, ' +
+      'video game graphics, anime style, distorted perspective, tilted verticals';
+  }
+
+  // ── Revit model lock (interior version) ──────────────────────
+  let revitBlock = '';
+  if (revitMode) {
+    revitBlock =
+      '\n\nCRITICAL — INTERIOR MODEL GEOMETRY LOCK:\n' +
+      "This prompt is based on an architect's Revit interior model reference image " +
+      'uploaded alongside this prompt. You MUST faithfully render the room geometry ' +
+      'shown in the reference. Do NOT redesign the spatial layout, ceiling heights, ' +
+      'window positions, or room proportions. Treat the Revit screenshot as the ' +
+      'absolute geometric authority — your job is only to apply materials, furniture, ' +
+      'lighting and atmosphere to exactly the space shown.';
+  }
+
+  // ── Assemble interior prompt ──────────────────────────────────
+  const prompt = `${toolPre}Photorealistic interior architectural rendering of a ${interiorStyle} ${roomType}. ${interiorCameraAngle}. Professional interior photography composition, correct perspective, no distortion, verticals perfectly straight.${revitBlock}
+
+INTERIOR STYLE DIRECTION:
+${interiorStyle} design language. Premium interior quality, curated material palette, architectural detail and craftsmanship clearly visible.
+
+SPACE & ROOM TYPE:
+${roomType}. Correct spatial proportions and ceiling height for this room type. No items added that do not belong in a ${roomType}.
+
+MATERIAL APPLICATION:
+
+Walls: ${interiorWallFinish}.
+
+Floor: ${floorMaterial}. Correctly rendered material texture, joints, reflection, and surface quality.
+
+Ceiling: ${ceilingType}. Ceiling height correctly proportioned to room type and style.
+
+FURNITURE & LAYOUT:
+${furnitureLayout}. All furniture correctly scaled to room dimensions. Premium materials — no cheap or plastic-looking surfaces.
+
+LIGHTING — TIME OF DAY: ${timeOfDay}
+${interiorLighting}. Colour temperature: ${colorTemp}. Physically accurate light simulation — correct light falloff, ambient occlusion, soft shadows, no overexposed surfaces.
+
+WINDOW VIEW:
+${windowView}. View visible through glazing adds depth and context.
+
+CAMERA COMPOSITION:
+${interiorCameraAngle}. No lens distortion. Verticals perfectly straight and parallel. No perspective keystoning.
+
+RENDERING QUALITY:
+Ultra-realistic, PBR material textures, global illumination, ambient occlusion, ray-traced reflections, soft natural shadows. V-Ray / Corona Interior Renderer style. 8K resolution, professional architectural photography quality.
+
+MOOD: ${interiorStyle} — luxury, refined, aspirational. High-end interior design studio visualization quality.
+
+ABSOLUTE RULES:
+• Do NOT change the room type or spatial layout
+• Do NOT add items that do not belong in a ${roomType}
+• Do NOT use cheap-looking or plastic materials
+• Verticals MUST be perfectly straight — no lens distortion
+• No cartoon, illustration, or sketch style
+• No watermarks or text in the image
+• Lighting must be physically plausible — no overexposed flat lighting${extraNotes ? '\n\nADDITIONAL NOTES:\n' + extraNotes : ''}${neg}${toolSuf}`;
 
   return prompt;
 }
