@@ -1176,21 +1176,6 @@ export default function Home() {
           </section>
 
           <aside className="builder-sidebar">
-            <div className="sticky-generate-bar">
-              <button
-                className={`gen-btn${isLocked ? " locked" : ""}`}
-                onClick={handleGenerateAndReveal}
-              >
-                {isLocked
-                  ? "🔒 Upgrade to Generate More"
-                  : "✦ Generate Precise Prompt"}
-              </button>
-              <div className="sticky-generate-hint">
-                {isPro ? "Unlimited prompts" : `${remaining} / ${FREE_LIMIT} free prompts left`}
-                {" · "}defaults are pre-filled — no setup required
-              </div>
-            </div>
-
             <div className="builder-card builder-output-card" ref={outputPanelRef}>
               <div className="builder-card-header">
                 <div>
