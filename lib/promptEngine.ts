@@ -174,6 +174,19 @@ ABSOLUTE RULES:
   return prompt;
 }
 
+// ─── IMAGE-GEN SANITIZER ──────────────────────────────────────────
+// Strips tool-specific syntax (Midjourney params, SD negative-prompt
+// blocks) that would otherwise show up as literal noise if fed
+// straight into an image model instead of copy-pasted elsewhere.
+
+export function sanitizePromptForImageGen(prompt: string): string {
+  return prompt
+    .replace(/^\/imagine\s+/, '')
+    .replace(/\n\n--ar[\s\S]*$/, '')
+    .replace(/\n\nNEGATIVE PROMPT:[\s\S]*?(?=\n\n[A-Z]|$)/, '')
+    .trim();
+}
+
 // ─── INTERIOR PROMPT ENGINE ──────────────────────────────────────
 // Implements the Page 10 interior residential model lock render system.
 

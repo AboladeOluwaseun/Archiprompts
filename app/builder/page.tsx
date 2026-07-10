@@ -6,6 +6,7 @@ import { PromptFormData, AiTool, BuilderMode, DEFAULT_FORM_DATA } from "@/lib/ty
 import { buildPrompt } from "@/lib/promptEngine";
 import { getSupabaseBrowser } from "@/lib/supabase";
 import { DEFAULT_BUILDER_OPTIONS, BuilderOptions } from "@/lib/formOptions";
+import { PRESETS, applyPreset, Preset } from "@/lib/presets";
 
 import SelectField from "@/components/SelectField";
 import ChipGroup from "@/components/ChipGroup";
@@ -13,6 +14,9 @@ import ToolCard from "@/components/ToolCard";
 import OutputPanel from "@/components/OutputPanel";
 import PricingModal from "@/components/PricingModal";
 import AuthModal from "@/components/AuthModal";
+import ModelUpload from "@/components/ModelUpload";
+import HistoryModal from "@/components/HistoryModal";
+import { saveHistoryEntry, hydrateFormSnapshot, HistoryEntry } from "@/lib/history";
 
 const FREE_LIMIT = 3;
 const ANON_PROMPT_KEY = "archiprompts-anon-used";
@@ -28,10 +32,15 @@ const AI_TOOLS: { id: AiTool; name: string; desc: string }[] = [
 export default function Home() {
   const [form, setForm] = useState<PromptFormData>(DEFAULT_FORM_DATA);
   const [output, setOutput] = useState("");
+  const [renderedImage, setRenderedImage] = useState<string | null>(null);
+  const [rendering, setRendering] = useState(false);
+  const [renderError, setRenderError] = useState<string | null>(null);
+  const [referenceImage, setReferenceImage] = useState<File | null>(null);
   const [used, setUsed] = useState(0);
   const [isPro, setIsPro] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [copied, setCopied] = useState(false);
   const [payEmail, setPayEmail] = useState("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -46,6 +55,7 @@ export default function Home() {
   >(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
+  const outputPanelRef = useRef<HTMLDivElement | null>(null);
 
   const {
     buildingTypes,
@@ -188,6 +198,18 @@ export default function Home() {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
+  // ── Presets ───────────────────────────────────────────────────
+  const handleApplyPreset = useCallback(
+    (preset: Preset) => {
+      setForm((prev) => applyPreset(preset, prev.aiTool));
+      setReferenceImage(null);
+      setOutput("");
+      setRenderedImage(null);
+      setRenderError(null);
+    },
+    [],
+  );
+
   // ── Form Helpers ──────────────────────────────────────────────
   const updateField = useCallback(
     <K extends keyof PromptFormData>(key: K, value: PromptFormData[K]) => {
@@ -234,6 +256,14 @@ export default function Home() {
 
     const prompt = buildPrompt(form);
     setOutput(prompt);
+    setRenderedImage(null);
+    setRenderError(null);
+
+    if (userEmail) {
+      saveHistoryEntry(form, prompt).catch((error) =>
+        console.warn("[History] save failed", error),
+      );
+    }
 
     if (!isPro) {
       const newUsed = used + 1;
@@ -256,11 +286,83 @@ export default function Home() {
     }
   };
 
+  const handleRestoreFromHistory = (entry: HistoryEntry) => {
+    setForm(hydrateFormSnapshot(entry.form_snapshot));
+    setOutput(entry.prompt_text);
+    setRenderedImage(null);
+    setRenderError(null);
+    setReferenceImage(null);
+    setShowHistory(false);
+    outputPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const handleGenerateAndReveal = () => {
+    if (isLocked) {
+      setShowModal(true);
+      return;
+    }
+    handleGenerate();
+    outputPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   const handleCopy = async () => {
     if (!output) return;
     await navigator.clipboard.writeText(output);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handleRenderPreview = async () => {
+    if (!output || rendering) return;
+
+    if (!userEmail) {
+      setShowAuth(true);
+      return;
+    }
+    if (!isPro) {
+      setShowModal(true);
+      return;
+    }
+
+    setRendering(true);
+    setRenderError(null);
+
+    try {
+      const sb = getSupabaseBrowser();
+      const { data: { session } = { session: null } } = sb
+        ? await sb.auth.getSession()
+        : { data: { session: null } };
+
+      const body = new FormData();
+      body.append("prompt", output);
+      if (form.revitMode && referenceImage) {
+        body.append("image", referenceImage);
+      }
+
+      const response = await fetch("/api/render", {
+        method: "POST",
+        headers: {
+          ...(session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
+        },
+        body,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setRenderError(data?.error || "Rendering failed. Please try again.");
+        return;
+      }
+
+      setRenderedImage(data.image);
+    } catch (error) {
+      console.warn("[Render] request failed", error);
+      setRenderError("Rendering failed. Please try again.");
+    } finally {
+      setRendering(false);
+    }
   };
 
   const handleGenerateOptions = async (section: keyof BuilderOptions) => {
@@ -411,7 +513,19 @@ export default function Home() {
           <div className="builder-topbar-actions">
             <nav className="builder-nav-links">
               <a href="#">Models</a>
-              <a href="#">Archive</a>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (!userEmail) {
+                    setShowAuth(true);
+                    return;
+                  }
+                  setShowHistory(true);
+                }}
+              >
+                Archive
+              </a>
               <a href="#">Teams</a>
             </nav>
             <button
@@ -505,6 +619,27 @@ export default function Home() {
               </p>
             </div>
 
+            {/* ── QUICK START PRESETS ── */}
+            <div className="preset-bar">
+              <div className="preset-bar-label">
+                ⚡ Quick Start — one-click examples
+              </div>
+              <div className="preset-bar-row">
+                {PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className="preset-card"
+                    onClick={() => handleApplyPreset(preset)}
+                  >
+                    <span className="preset-card-icon">{preset.icon}</span>
+                    <span className="preset-card-label">{preset.label}</span>
+                    <span className="preset-card-desc">{preset.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* ── MODE SWITCHER ── */}
             <div className="mode-switcher">
               <button
@@ -585,6 +720,13 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
+
+                  {form.revitMode && (
+                    <div className="fg model-reference-field">
+                      <label>Model Reference</label>
+                      <ModelUpload file={referenceImage} onChange={setReferenceImage} />
+                    </div>
+                  )}
                 </div>
 
                 <div className="builder-card">
@@ -816,9 +958,16 @@ export default function Home() {
                   {form.revitMode && (
                     <div className="interior-model-lock-notice">
                       <strong>⚠ Revit / Model Lock Active</strong>
-                      Upload your Revit or SketchUp model screenshot alongside this prompt.
+                      Upload your Revit or SketchUp model screenshot below.
                       The geometry lock instruction will be embedded — the AI will preserve
                       all room proportions, openings, and structural elements exactly as modelled.
+                    </div>
+                  )}
+
+                  {form.revitMode && (
+                    <div className="fg model-reference-field">
+                      <label>Model Reference</label>
+                      <ModelUpload file={referenceImage} onChange={setReferenceImage} />
                     </div>
                   )}
 
@@ -1027,7 +1176,22 @@ export default function Home() {
           </section>
 
           <aside className="builder-sidebar">
-            <div className="builder-card builder-output-card">
+            <div className="sticky-generate-bar">
+              <button
+                className={`gen-btn${isLocked ? " locked" : ""}`}
+                onClick={handleGenerateAndReveal}
+              >
+                {isLocked
+                  ? "🔒 Upgrade to Generate More"
+                  : "✦ Generate Precise Prompt"}
+              </button>
+              <div className="sticky-generate-hint">
+                {isPro ? "Unlimited prompts" : `${remaining} / ${FREE_LIMIT} free prompts left`}
+                {" · "}defaults are pre-filled — no setup required
+              </div>
+            </div>
+
+            <div className="builder-card builder-output-card" ref={outputPanelRef}>
               <div className="builder-card-header">
                 <div>
                   <h2>Console / Output</h2>
@@ -1052,6 +1216,10 @@ export default function Home() {
                   }
                   setShowModal(true);
                 }}
+                renderedImage={renderedImage}
+                rendering={rendering}
+                renderError={renderError}
+                onRenderPreview={handleRenderPreview}
               />
             </div>
 
@@ -1076,13 +1244,23 @@ export default function Home() {
               </div>
               {form.revitMode && (
                 <div className="builder-warning">
-                  ⚠ {isInterior ? 'MODEL LOCK ACTIVE' : 'REVIT MODE ACTIVE'}: Upload your model screenshot alongside
-                  this prompt for optimal {isInterior ? 'spatial geometry' : 'structural'} alignment.
+                  {referenceImage
+                    ? `✓ MODEL REFERENCE ATTACHED: "${referenceImage.name}" will guide Render Preview for ${isInterior ? 'spatial geometry' : 'structural'} lock.`
+                    : `⚠ ${isInterior ? 'MODEL LOCK ACTIVE' : 'REVIT MODE ACTIVE'}: Upload your model screenshot above for optimal ${isInterior ? 'spatial geometry' : 'structural'} alignment.`}
                 </div>
               )}
             </div>
           </aside>
         </main>
+      </div>
+
+      <div className="mobile-generate-fab">
+        <button
+          className={`gen-btn${isLocked ? " locked" : ""}`}
+          onClick={handleGenerateAndReveal}
+        >
+          {isLocked ? "🔒 Upgrade" : "✦ Generate Prompt"}
+        </button>
       </div>
 
       <PricingModal
@@ -1101,6 +1279,12 @@ export default function Home() {
           setUserEmail(email);
           setPayEmail(email);
         }}
+      />
+
+      <HistoryModal
+        open={showHistory}
+        onClose={() => setShowHistory(false)}
+        onRestore={handleRestoreFromHistory}
       />
     </>
   );

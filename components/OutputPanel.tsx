@@ -7,6 +7,10 @@ interface OutputPanelProps {
   freeLimit: number;
   onCopy: () => void;
   onUpgrade: () => void;
+  renderedImage: string | null;
+  rendering: boolean;
+  renderError: string | null;
+  onRenderPreview: () => void;
 }
 
 export default function OutputPanel({
@@ -18,6 +22,10 @@ export default function OutputPanel({
   freeLimit,
   onCopy,
   onUpgrade,
+  renderedImage,
+  rendering,
+  renderError,
+  onRenderPreview,
 }: OutputPanelProps) {
   return (
     <div className="out-panel">
@@ -57,27 +65,65 @@ export default function OutputPanel({
       {output && (
         <div className="out-foot">
           <span className="cc">{output.length} characters</span>
-          <button
-            className={`copy-btn${copied ? ' copied' : ''}`}
-            onClick={onCopy}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              className="copy-btn"
+              onClick={onRenderPreview}
+              disabled={rendering}
+            >
+              {rendering ? (
+                "Rendering…"
+              ) : (
+                <>
+                  <span className="render-btn-icon" aria-hidden>🖼</span>
+                  {isPro ? "Render Preview" : "Render Preview (Pro)"}
+                </>
+              )}
+            </button>
+            <button
+              className={`copy-btn${copied ? ' copied' : ''}`}
+              onClick={onCopy}
+            >
+              {copied ? (
+                <>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" />
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                  </svg>
+                  Copy Prompt
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {renderError && <div className="render-error">{renderError}</div>}
+
+      {rendering && !renderedImage && (
+        <div className="render-preview render-preview-loading">
+          <div className="render-spinner" />
+          <p>Rendering preview — this can take 10–20 seconds…</p>
+        </div>
+      )}
+
+      {renderedImage && (
+        <div className="render-preview">
+          <img src={renderedImage} alt="AI-rendered architectural preview" />
+          <a
+            className="render-download"
+            href={renderedImage}
+            download="archiprompts-preview.png"
           >
-            {copied ? (
-              <>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                Copied!
-              </>
-            ) : (
-              <>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="9" y="9" width="13" height="13" rx="2" />
-                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                </svg>
-                Copy Prompt
-              </>
-            )}
-          </button>
+            Download PNG
+          </a>
         </div>
       )}
 
