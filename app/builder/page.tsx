@@ -15,6 +15,7 @@ import OutputPanel from "@/components/OutputPanel";
 import PricingModal from "@/components/PricingModal";
 import AuthModal from "@/components/AuthModal";
 import ModelUpload from "@/components/ModelUpload";
+import MaterialAssignmentList from "@/components/MaterialAssignmentList";
 import HistoryModal from "@/components/HistoryModal";
 import { saveHistoryEntry, hydrateFormSnapshot, HistoryEntry } from "@/lib/history";
 
@@ -62,8 +63,8 @@ export default function Home() {
     archStyles,
     floors,
     buildingForms,
-    wallFinishes,
-    accentMaterials,
+    facadeMaterialOptions,
+    facadeZones,
     facadeElements,
     finWidths,
     finHeights,
@@ -82,6 +83,7 @@ export default function Home() {
     interiorStyles,
     furnitureLayouts,
     interiorWallFinishes,
+    interiorWallZones,
     floorMaterials,
     ceilingTypes,
     interiorLightings,
@@ -225,17 +227,20 @@ export default function Home() {
     [],
   );
 
-  const toggleMultiChip = useCallback((value: string) => {
-    setForm((prev) => {
-      const arr = prev.facadeElements;
-      return {
-        ...prev,
-        facadeElements: arr.includes(value)
-          ? arr.filter((v) => v !== value)
-          : [...arr, value],
-      };
-    });
-  }, []);
+  const toggleArrayField = useCallback(
+    (key: "facadeElements", value: string) => {
+      setForm((prev) => {
+        const arr = prev[key];
+        return {
+          ...prev,
+          [key]: arr.includes(value)
+            ? arr.filter((v) => v !== value)
+            : [...arr, value],
+        };
+      });
+    },
+    [],
+  );
 
   // ── Derived State ─────────────────────────────────────────────
   const hasFins = form.facadeElements.some((v) => v.includes("vertical fins"));
@@ -769,18 +774,18 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="two-col">
-                    <SelectField
-                      label="Primary Wall Finish"
-                      value={form.wallFinish}
-                      onChange={(v) => updateField("wallFinish", v)}
-                      options={wallFinishes}
-                    />
-                    <SelectField
-                      label="Accent Material"
-                      value={form.accentMat}
-                      onChange={(v) => updateField("accentMat", v)}
-                      options={accentMaterials}
+                  <div className="fg">
+                    <label>Facade Materials</label>
+                    <div className="hint">
+                      Assign a material to each part of the building — like
+                      applying materials to specific faces in a 3D renderer.
+                      Add as many zones as you need.
+                    </div>
+                    <MaterialAssignmentList
+                      assignments={form.facadeMaterials}
+                      onChange={(next) => updateField("facadeMaterials", next)}
+                      zoneOptions={facadeZones}
+                      materialOptions={facadeMaterialOptions}
                     />
                   </div>
                 </div>
@@ -805,7 +810,7 @@ export default function Home() {
                     <ChipGroup
                       options={facadeElements}
                       selected={form.facadeElements}
-                      onToggle={toggleMultiChip}
+                      onToggle={(v) => toggleArrayField("facadeElements", v)}
                       multi
                     />
                   </div>
@@ -1021,13 +1026,23 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="two-col">
-                    <SelectField
-                      label="Interior Wall Finish"
-                      value={form.interiorWallFinish}
-                      onChange={(v) => updateField("interiorWallFinish", v)}
-                      options={interiorWallFinishes}
+                  <div className="fg">
+                    <label>Interior Wall Materials</label>
+                    <div className="hint">
+                      Assign a material to each wall or zone — e.g. a
+                      different material for an accent wall than the rest
+                      of the room.
+                    </div>
+                    <MaterialAssignmentList
+                      assignments={form.interiorWallMaterials}
+                      onChange={(next) =>
+                        updateField("interiorWallMaterials", next)
+                      }
+                      zoneOptions={interiorWallZones}
+                      materialOptions={interiorWallFinishes}
                     />
+                  </div>
+                  <div className="fg">
                     <SelectField
                       label="Floor Material"
                       value={form.floorMaterial}

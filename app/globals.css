@@ -2008,6 +2008,75 @@ textarea::placeholder {
   }
 }
 
+/* ─── MATERIAL ZONE ASSIGNMENT ───────────────────────────────── */
+.material-assignment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.material-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+.material-row select {
+  width: 100%;
+}
+
+.material-row-remove {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dark-3);
+  border: 1px solid var(--dark-5);
+  border-radius: var(--r);
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.material-row-remove:hover:not(:disabled) {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.material-row-remove:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.material-add-btn {
+  align-self: flex-start;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px dashed rgba(201, 168, 76, 0.45);
+  border-radius: var(--r);
+  color: var(--gold);
+  font-family: "Syne", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.material-add-btn:hover {
+  background: rgba(201, 168, 76, 0.07);
+  border-color: var(--gold);
+}
+
+@media (max-width: 640px) {
+  .material-row {
+    grid-template-columns: 1fr;
+  }
+  .material-row-remove {
+    width: 100%;
+  }
+}
+
 /* ─── MODEL UPLOAD (Revit / Model Lock reference) ────────────── */
 .model-reference-field {
   margin-top: 16px;

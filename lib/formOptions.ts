@@ -8,6 +8,8 @@ export interface BuilderOptions {
   buildingForms: ChipOption[];
   wallFinishes: SelectOption[];
   accentMaterials: SelectOption[];
+  facadeMaterialOptions: SelectOption[];
+  facadeZones: SelectOption[];
   facadeElements: ChipOption[];
   finWidths: SelectOption[];
   finHeights: SelectOption[];
@@ -26,6 +28,7 @@ export interface BuilderOptions {
   interiorStyles: ChipOption[];
   furnitureLayouts: SelectOption[];
   interiorWallFinishes: SelectOption[];
+  interiorWallZones: SelectOption[];
   floorMaterials: SelectOption[];
   ceilingTypes: SelectOption[];
   interiorLightings: SelectOption[];
@@ -126,6 +129,29 @@ export const WALL_FINISHES: SelectOption[] = [
     value: "smooth white reinforced concrete frame",
   },
   { label: "Sand-Finish Plaster", value: "textured sand-finished plaster" },
+  {
+    label: "Natural Stone Cladding",
+    value: "natural stone cladding walls, textured stone surface",
+  },
+  { label: "Red Brick", value: "exposed red brick walls" },
+  { label: "Timber Cladding", value: "natural timber cladding panels" },
+  {
+    label: "Terracotta Painted Render",
+    value: "terracotta-painted smooth render",
+  },
+  {
+    label: "Charcoal Painted Render",
+    value: "charcoal dark grey painted render",
+  },
+  {
+    label: "Deep Blue Painted Render",
+    value: "deep navy blue painted render",
+  },
+  {
+    label: "Warm Sand Painted Render",
+    value: "warm sand-toned painted render",
+  },
+  { label: "Olive Green Painted Render", value: "olive green painted render" },
 ];
 
 export const ACCENT_MATERIALS: SelectOption[] = [
@@ -143,6 +169,40 @@ export const ACCENT_MATERIALS: SelectOption[] = [
     label: "Perforated Metal Screen",
     value: "perforated metal screen cladding",
   },
+];
+
+// Combined pool for the facade material-zone assignment rows — a zone
+// might reasonably take either a "wall finish" or an "accent" material.
+export const FACADE_MATERIAL_OPTIONS: SelectOption[] = [
+  ...WALL_FINISHES,
+  ...ACCENT_MATERIALS,
+];
+
+// Where a facade material can be applied — mirrors how a 3D rendering
+// tool lets you assign a material to a specific face/element, adapted
+// to a text-prompt tool (no real geometry to click on).
+export const FACADE_ZONES: SelectOption[] = [
+  { label: "Front / Primary Facade", value: "Front / Primary Facade" },
+  { label: "Side Elevations", value: "Side Elevations" },
+  { label: "Rear Elevation", value: "Rear Elevation" },
+  { label: "Ground Floor / Base", value: "Ground Floor / Base" },
+  { label: "Upper Floors", value: "Upper Floors" },
+  { label: "Accent / Feature Areas", value: "Accent / Feature Areas" },
+  { label: "Roof Fascia / Parapet", value: "Roof Fascia / Parapet" },
+  { label: "Window Surrounds / Reveals", value: "Window Surrounds / Reveals" },
+  { label: "Columns / Structural Piers", value: "Columns / Structural Piers" },
+  { label: "Balcony Fronts", value: "Balcony Fronts" },
+  { label: "Entrance Feature", value: "Entrance Feature" },
+];
+
+// Where an interior wall material can be applied.
+export const INTERIOR_WALL_ZONES: SelectOption[] = [
+  { label: "Main Walls", value: "Main Walls" },
+  { label: "Accent / Feature Wall", value: "Accent / Feature Wall" },
+  { label: "Wall Behind TV / Media Unit", value: "Wall Behind TV / Media Unit" },
+  { label: "Headboard Wall (Behind Bed)", value: "Headboard Wall (Behind Bed)" },
+  { label: "Wainscoting / Lower Wall Band", value: "Wainscoting / Lower Wall Band" },
+  { label: "Wet Wall (Kitchen / Bath Splashback)", value: "Wet Wall (Kitchen / Bath Splashback)" },
 ];
 
 // ─── Section 04 — Facade Elements (multi-select) ────────────────
@@ -580,6 +640,8 @@ export const DEFAULT_BUILDER_OPTIONS: BuilderOptions = {
   buildingForms: BUILDING_FORMS,
   wallFinishes: WALL_FINISHES,
   accentMaterials: ACCENT_MATERIALS,
+  facadeMaterialOptions: FACADE_MATERIAL_OPTIONS,
+  facadeZones: FACADE_ZONES,
   facadeElements: FACADE_ELEMENTS,
   finWidths: FIN_WIDTHS,
   finHeights: FIN_HEIGHTS,
@@ -598,6 +660,7 @@ export const DEFAULT_BUILDER_OPTIONS: BuilderOptions = {
   interiorStyles: INTERIOR_STYLES,
   furnitureLayouts: FURNITURE_LAYOUTS,
   interiorWallFinishes: INTERIOR_WALL_FINISHES,
+  interiorWallZones: INTERIOR_WALL_ZONES,
   floorMaterials: FLOOR_MATERIALS,
   ceilingTypes: CEILING_TYPES,
   interiorLightings: INTERIOR_LIGHTINGS,

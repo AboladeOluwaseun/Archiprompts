@@ -15,6 +15,15 @@ export interface ChipOption {
   value: string;
 }
 
+// ─── Material Zone Assignment ───────────────────────────────────
+// Ties a material to a specific part of the building — the closest a
+// text-prompt tool can get to "select a face, apply a material" from
+// traditional 3D rendering software (Corona/3ds Max/SketchUp).
+export interface MaterialAssignment {
+  zone: string;
+  material: string;
+}
+
 // ─── Facade Element Keys ────────────────────────────────────────
 export type FacadeElementKey =
   | 'verticalFins'
@@ -44,9 +53,8 @@ export interface PromptFormData {
   buildingForm: string;
   massingNotes: string;
 
-  // ── Exterior: Section 03 — Materials & Facade ───────────────
-  wallFinish: string;
-  accentMat: string;
+  // ── Exterior: Section 03 — Materials & Facade (zone assignment) ─
+  facadeMaterials: MaterialAssignment[];
 
   // ── Exterior: Section 04 — Facade Elements (multi-select) ───
   facadeElements: string[];
@@ -78,7 +86,7 @@ export interface PromptFormData {
   interiorStyle: string;
 
   // ── Interior: Section 02 — Materials & Furniture ────────────
-  interiorWallFinish: string;
+  interiorWallMaterials: MaterialAssignment[];
   floorMaterial: string;
   furnitureLayout: string;
 
@@ -107,8 +115,10 @@ export const DEFAULT_FORM_DATA: PromptFormData = {
   floors: 'two storey',
   buildingForm: 'rectangular box massing, straight orthogonal facades on all sides',
   massingNotes: '',
-  wallFinish: 'smooth off-white painted render',
-  accentMat: 'natural stone cladding',
+  facadeMaterials: [
+    { zone: 'Front / Primary Facade', material: 'smooth off-white painted render' },
+    { zone: 'Accent / Feature Areas', material: 'natural stone cladding' },
+  ],
   facadeElements: [],
   finWidth: 'narrow fins (approximately 100-150mm wide each)',
   finHeight: 'fins spanning exactly one floor height',
@@ -126,7 +136,9 @@ export const DEFAULT_FORM_DATA: PromptFormData = {
   // Interior
   roomType: 'luxury living room',
   interiorStyle: 'Minimal Warm Contemporary',
-  interiorWallFinish: 'smooth lime plaster, micro-texture variation, warm white tone',
+  interiorWallMaterials: [
+    { zone: 'Main Walls', material: 'smooth lime plaster, micro-texture variation, warm white tone' },
+  ],
   floorMaterial: 'natural oak hardwood flooring, wide planks, matte finish, subtle grain variation',
   furnitureLayout: 'open-plan seating arrangement, modular sofa, low coffee table, accent armchair',
   ceilingType: 'smooth plastered flat ceiling with recessed LED cove lighting',

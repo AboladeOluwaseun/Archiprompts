@@ -9,7 +9,16 @@
  *     Architects validated this output through real-world testing.
  */
 
-import { PromptFormData } from './types';
+import { MaterialAssignment, PromptFormData } from './types';
+
+// Renders a zone→material list as an explicit schedule the AI can follow
+// per-location, instead of a flat list with no spatial meaning.
+function formatMaterialSchedule(assignments: MaterialAssignment[]): string {
+  return assignments
+    .filter((a) => a.material)
+    .map((a) => `• ${a.zone}: ${a.material}.`)
+    .join('\n');
+}
 
 export function buildPrompt(data: PromptFormData): string {
   // ── Route by mode ─────────────────────────────────────────────
@@ -29,8 +38,7 @@ function buildExteriorPrompt(data: PromptFormData): string {
     revitMode,
     buildingForm,
     massingNotes,
-    wallFinish,
-    accentMat,
+    facadeMaterials,
     facadeElements,
     finWidth,
     finHeight,
@@ -92,6 +100,9 @@ function buildExteriorPrompt(data: PromptFormData): string {
       'and context to exactly what is shown.';
   }
 
+  // ── Materials: per-zone facade material schedule ──────────────
+  const materialSchedule = formatMaterialSchedule(facadeMaterials);
+
   // ── 7. Facade Elements block ──────────────────────────────────
   let facadeElsBlock = '';
   if (facadeElements.length > 0) {
@@ -140,8 +151,9 @@ BUILDING FORM & SILHOUETTE:
 ${buildingForm}.${massingNotes ? '\nAdditional massing notes: ' + massingNotes : ''}
 IMPORTANT: Maintain exactly this building form — do not alter or simplify the silhouette.
 
-FACADE & MATERIALS:
-Primary wall: ${wallFinish}. Feature accent: ${accentMat}. Clean crisp edges, realistic surface roughness and material depth.
+FACADE & MATERIALS (apply each material only to its named zone — do not blend zones into one uniform material):
+${materialSchedule}
+Clean crisp edges, realistic surface roughness and material depth.
 ${facadeElsBlock}${finBlock}${slabBlock}
 GLAZING:
 ${windows}, ${glazingTint}, correct window reveals and realistic shadows inside reveals.
@@ -194,7 +206,7 @@ function buildInteriorPrompt(data: PromptFormData): string {
   const {
     roomType,
     interiorStyle,
-    interiorWallFinish,
+    interiorWallMaterials,
     floorMaterial,
     furnitureLayout,
     ceilingType,
@@ -248,9 +260,10 @@ ${interiorStyle} design language. Premium interior quality, curated material pal
 SPACE & ROOM TYPE:
 ${roomType}. Correct spatial proportions and ceiling height for this room type. No items added that do not belong in a ${roomType}.
 
-MATERIAL APPLICATION:
+MATERIAL APPLICATION (apply each wall material only to its named zone — do not blend zones into one uniform material):
 
-Walls: ${interiorWallFinish}.
+Walls:
+${formatMaterialSchedule(interiorWallMaterials)}
 
 Floor: ${floorMaterial}. Correctly rendered material texture, joints, reflection, and surface quality.
 

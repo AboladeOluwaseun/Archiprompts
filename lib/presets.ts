@@ -33,8 +33,10 @@ export const PRESETS: Preset[] = [
       floors: "eight or more storey",
       buildingForm: "cylindrical tower form, circular floor plan",
       massingNotes: "",
-      wallFinish: "smooth white reinforced concrete frame",
-      accentMat: "glazed curtain wall",
+      facadeMaterials: [
+        { zone: "Upper Floors", material: "smooth white reinforced concrete frame" },
+        { zone: "Front / Primary Facade", material: "glazed curtain wall" },
+      ],
       facadeElements: [
         "full-height curtain wall glazing with dark tinted glass and aluminium mullions",
       ],
@@ -64,8 +66,10 @@ export const PRESETS: Preset[] = [
       floors: "four storey",
       buildingForm: "angular / faceted facade, diagonal cuts and angled planes",
       massingNotes: "",
-      wallFinish: "exposed fair-faced concrete",
-      accentMat: "dark aluminium composite panels",
+      facadeMaterials: [
+        { zone: "Front / Primary Facade", material: "exposed fair-faced concrete" },
+        { zone: "Accent / Feature Areas", material: "dark aluminium composite panels" },
+      ],
       facadeElements: [
         "expressed horizontal floor slab bands with deep slab edge visible between floors",
       ],
@@ -93,7 +97,9 @@ export const PRESETS: Preset[] = [
     overrides: {
       roomType: "luxury living room",
       interiorStyle: "scandinavian minimal",
-      interiorWallFinish: "clean white smooth painted plaster walls",
+      interiorWallMaterials: [
+        { zone: "Main Walls", material: "clean white smooth painted plaster walls" },
+      ],
       floorMaterial:
         "natural oak hardwood flooring, wide planks, matte finish, subtle grain variation",
       furnitureLayout:
@@ -117,7 +123,9 @@ export const PRESETS: Preset[] = [
     overrides: {
       roomType: "open-plan kitchen and dining area",
       interiorStyle: "minimal warm contemporary",
-      interiorWallFinish: "smooth lime plaster, micro-texture variation, warm white tone",
+      interiorWallMaterials: [
+        { zone: "Main Walls", material: "smooth lime plaster, micro-texture variation, warm white tone" },
+      ],
       floorMaterial:
         "large-format porcelain tiles with stone texture effect, beige-grey tone, matt finish",
       furnitureLayout:
