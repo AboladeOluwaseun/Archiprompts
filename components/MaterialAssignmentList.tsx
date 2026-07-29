@@ -1,6 +1,76 @@
 "use client";
 
+import { useState } from "react";
 import { MaterialAssignment, SelectOption } from "@/lib/types";
+
+const OTHER_VALUE = "__other__";
+
+interface RowFieldProps {
+  value: string;
+  onChange: (value: string) => void;
+  options: SelectOption[];
+  ariaLabel: string;
+  placeholder: string;
+}
+
+function RowField({ value, onChange, options, ariaLabel, placeholder }: RowFieldProps) {
+  const matchesOption = options.some((o) => o.value === value);
+  const [showCustom, setShowCustom] = useState(!matchesOption && value !== "");
+  const [customInput, setCustomInput] = useState(matchesOption ? "" : value);
+
+  if (showCustom) {
+    return (
+      <div className="custom-input-row">
+        <input
+          type="text"
+          value={customInput}
+          placeholder={placeholder}
+          onChange={(e) => {
+            setCustomInput(e.target.value);
+            onChange(e.target.value);
+          }}
+          aria-label={ariaLabel}
+          autoFocus
+        />
+        <button
+          type="button"
+          className="custom-back-btn"
+          onClick={() => {
+            setShowCustom(false);
+            setCustomInput("");
+            onChange(options[0]?.value ?? "");
+          }}
+          title="Back to list"
+        >
+          ✕
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <select
+      value={value}
+      onChange={(e) => {
+        if (e.target.value === OTHER_VALUE) {
+          setShowCustom(true);
+          setCustomInput("");
+          onChange("");
+          return;
+        }
+        onChange(e.target.value);
+      }}
+      aria-label={ariaLabel}
+    >
+      {options.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+      <option value={OTHER_VALUE}>Other…</option>
+    </select>
+  );
+}
 
 interface MaterialAssignmentListProps {
   assignments: MaterialAssignment[];
@@ -17,6 +87,8 @@ export default function MaterialAssignmentList({
   materialOptions,
   addLabel = "+ Add Material Zone",
 }: MaterialAssignmentListProps) {
+  const [expanded, setExpanded] = useState(false);
+
   const updateRow = (index: number, patch: Partial<MaterialAssignment>) => {
     onChange(
       assignments.map((row, i) => (i === index ? { ...row, ...patch } : row)),
@@ -39,32 +111,55 @@ export default function MaterialAssignmentList({
     ]);
   };
 
+  const materialLabel = (value: string) =>
+    materialOptions.find((o) => o.value === value)?.label ?? value;
+
+  if (!expanded) {
+    const summary =
+      assignments.length === 0
+        ? "No materials assigned"
+        : assignments.map((a) => materialLabel(a.material)).join(" + ");
+
+    return (
+      <div className="material-summary">
+        <span className="material-summary-text">
+          {summary}
+          <span className="material-summary-count">
+            {" — "}
+            {assignments.length} zone{assignments.length === 1 ? "" : "s"}
+          </span>
+        </span>
+        <button
+          type="button"
+          className="material-customize-btn"
+          onClick={() => setExpanded(true)}
+        >
+          Customize
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="material-assignment-list">
       {assignments.map((row, index) => (
         <div className="material-row" key={index}>
-          <select
+          <RowField
+            key={`zone-${index}`}
             value={row.zone}
-            onChange={(e) => updateRow(index, { zone: e.target.value })}
-            aria-label="Zone"
-          >
-            {zoneOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <select
+            onChange={(v) => updateRow(index, { zone: v })}
+            options={zoneOptions}
+            ariaLabel="Zone"
+            placeholder="Type a custom zone…"
+          />
+          <RowField
+            key={`material-${index}`}
             value={row.material}
-            onChange={(e) => updateRow(index, { material: e.target.value })}
-            aria-label="Material"
-          >
-            {materialOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => updateRow(index, { material: v })}
+            options={materialOptions}
+            ariaLabel="Material"
+            placeholder="Type a custom material…"
+          />
           <button
             type="button"
             className="material-row-remove"
@@ -81,9 +176,18 @@ export default function MaterialAssignmentList({
         </div>
       ))}
 
-      <button type="button" className="material-add-btn" onClick={addRow}>
-        {addLabel}
-      </button>
+      <div className="material-assignment-actions">
+        <button type="button" className="material-add-btn" onClick={addRow}>
+          {addLabel}
+        </button>
+        <button
+          type="button"
+          className="material-collapse-btn"
+          onClick={() => setExpanded(false)}
+        >
+          Done
+        </button>
+      </div>
     </div>
   );
 }
