@@ -1,3 +1,8 @@
+"use client";
+
+import { useState } from "react";
+import { RenderVariant } from "@/lib/renderVariants";
+
 interface OutputPanelProps {
   output: string;
   copied: boolean;
@@ -11,7 +16,25 @@ interface OutputPanelProps {
   rendering: boolean;
   renderError: string | null;
   onRenderPreview: () => void;
+  refining: boolean;
+  refineError: string | null;
+  onRefine: (instructions: string) => void;
+  variants: RenderVariant[];
+  activeVariantId: string | null;
+  onSelectVariant: (variant: RenderVariant) => void;
 }
+
+// Quick-add atmospheric touches — the exact kind of post-render staging
+// a tester asked for (god rays, people, a LUT) without needing to know
+// how to phrase it. Free text below covers anything not listed here.
+const REFINE_QUICK_ADDS = [
+  { label: "☀️ God Rays", value: "Add dramatic volumetric god rays streaming through the windows" },
+  { label: "🧍 Add People", value: "Add 1-2 people naturally positioned in the space, appropriately dressed and scaled" },
+  { label: "🌇 Warm Cinematic LUT", value: "Apply a warm, golden cinematic color grade" },
+  { label: "❄️ Cool Cinematic LUT", value: "Apply a cool, blue-toned cinematic color grade" },
+  { label: "🌿 Add Greenery", value: "Add a few potted plants or greenery naturally placed in the space" },
+  { label: "🎞️ Depth of Field", value: "Add a subtle depth-of-field blur to the background" },
+];
 
 export default function OutputPanel({
   output,
@@ -26,7 +49,32 @@ export default function OutputPanel({
   rendering,
   renderError,
   onRenderPreview,
+  refining,
+  refineError,
+  onRefine,
+  variants,
+  activeVariantId,
+  onSelectVariant,
 }: OutputPanelProps) {
+  const [selectedAdds, setSelectedAdds] = useState<string[]>([]);
+  const [customInstructions, setCustomInstructions] = useState("");
+
+  const activeVariant = variants.find((v) => v.id === activeVariantId);
+
+  const toggleAdd = (value: string) => {
+    setSelectedAdds((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
+    );
+  };
+
+  const handleRefineClick = () => {
+    const instructions = [...selectedAdds, customInstructions.trim()]
+      .filter(Boolean)
+      .join(". ");
+    if (!instructions) return;
+    onRefine(instructions);
+  };
+
   return (
     <div className="out-panel">
       <div className="out-lbl fi s3">Generated Prompt</div>
@@ -117,13 +165,76 @@ export default function OutputPanel({
       {renderedImage && (
         <div className="render-preview">
           <img src={renderedImage} alt="AI-rendered architectural preview" />
-          <a
-            className="render-download"
-            href={renderedImage}
-            download="archiprompts-preview.png"
-          >
-            Download PNG
-          </a>
+          <div className="render-actions-row">
+            <a
+              className="render-download"
+              href={renderedImage}
+              download="archiprompts-preview.png"
+            >
+              Download PNG
+            </a>
+            {activeVariant && (
+              <span className="variant-current-label" title={activeVariant.label}>
+                Viewing: {activeVariant.label}
+              </span>
+            )}
+          </div>
+
+          {variants.length > 1 && (
+            <div className="variant-strip">
+              {variants.map((v, i) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  className={`variant-thumb${v.id === activeVariantId ? " active" : ""}`}
+                  onClick={() => onSelectVariant(v)}
+                  title={v.label}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={v.image_url} alt={v.label} />
+                  <span className="variant-thumb-index">{i + 1}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="refine-section">
+            <div className="refine-label">
+              Refine This Render
+              <span className="refine-sublabel">
+                Post-render staging, not a redo — geometry and materials stay locked.
+              </span>
+            </div>
+            <div className="refine-chips">
+              {REFINE_QUICK_ADDS.map((opt) => (
+                <div
+                  key={opt.value}
+                  className={`chip${selectedAdds.includes(opt.value) ? " active" : ""}`}
+                  onClick={() => toggleAdd(opt.value)}
+                >
+                  {opt.label}
+                </div>
+              ))}
+            </div>
+            <textarea
+              className="refine-input"
+              placeholder="Anything else to add or adjust? e.g. 'make the dining chairs upholstered in navy fabric'"
+              value={customInstructions}
+              onChange={(e) => setCustomInstructions(e.target.value)}
+              rows={2}
+            />
+            {refineError && <div className="render-error">{refineError}</div>}
+            <button
+              type="button"
+              className="refine-btn"
+              onClick={handleRefineClick}
+              disabled={
+                refining || (selectedAdds.length === 0 && !customInstructions.trim())
+              }
+            >
+              {refining ? "Refining…" : "✦ Refine Render"}
+            </button>
+          </div>
         </div>
       )}
 

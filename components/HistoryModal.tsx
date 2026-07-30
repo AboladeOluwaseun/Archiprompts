@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { HistoryEntry, fetchHistory, deleteHistoryEntry } from "@/lib/history";
+import {
+  HistoryEntry,
+  fetchHistory,
+  deleteHistoryEntry,
+  updateHistoryProjectName,
+} from "@/lib/history";
 
 interface HistoryModalProps {
   open: boolean;
@@ -13,10 +18,14 @@ export default function HistoryModal({ open, onClose, onRestore }: HistoryModalP
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [projectFilter, setProjectFilter] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
+    setProjectFilter("");
     fetchHistory().then((data) => {
       setEntries(data);
       setLoading(false);
@@ -25,6 +34,14 @@ export default function HistoryModal({ open, onClose, onRestore }: HistoryModalP
 
   if (!open) return null;
 
+  const projectNames = Array.from(
+    new Set(entries.map((e) => e.project_name).filter((p): p is string => !!p)),
+  );
+
+  const visibleEntries = projectFilter
+    ? entries.filter((e) => e.project_name === projectFilter)
+    : entries;
+
   const handleDelete = async (id: string) => {
     setDeletingId(id);
     const ok = await deleteHistoryEntry(id);
@@ -32,6 +49,24 @@ export default function HistoryModal({ open, onClose, onRestore }: HistoryModalP
       setEntries((prev) => prev.filter((e) => e.id !== id));
     }
     setDeletingId(null);
+  };
+
+  const startEditing = (entry: HistoryEntry) => {
+    setEditingId(entry.id);
+    setEditValue(entry.project_name || "");
+  };
+
+  const saveProjectName = async (id: string) => {
+    const value = editValue;
+    setEditingId(null);
+    const ok = await updateHistoryProjectName(id, value);
+    if (ok) {
+      setEntries((prev) =>
+        prev.map((e) =>
+          e.id === id ? { ...e, project_name: value.trim() || null } : e,
+        ),
+      );
+    }
   };
 
   return (
@@ -56,6 +91,23 @@ export default function HistoryModal({ open, onClose, onRestore }: HistoryModalP
           <p>Every prompt you've generated while signed in, saved automatically.</p>
         </div>
 
+        {projectNames.length > 0 && (
+          <div className="history-filter">
+            <label>Project</label>
+            <select
+              value={projectFilter}
+              onChange={(e) => setProjectFilter(e.target.value)}
+            >
+              <option value="">All Projects</option>
+              {projectNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="history-list">
           {loading && <div className="history-empty">Loading…</div>}
 
@@ -65,13 +117,51 @@ export default function HistoryModal({ open, onClose, onRestore }: HistoryModalP
             </div>
           )}
 
+          {!loading && entries.length > 0 && visibleEntries.length === 0 && (
+            <div className="history-empty">No saved prompts for this project.</div>
+          )}
+
           {!loading &&
-            entries.map((entry) => (
+            visibleEntries.map((entry) => (
               <div key={entry.id} className="history-item">
+                {entry.rendered_image_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={entry.rendered_image_url}
+                    alt=""
+                    className="history-item-thumb"
+                  />
+                )}
                 <div className="history-item-main">
                   <div className="history-item-top">
-                    <span className="history-item-mode">
-                      {entry.builder_mode === "interior" ? "🛋️ Interior" : "🏛️ Exterior"}
+                    <span className="history-item-tags">
+                      <span className="history-item-mode">
+                        {entry.builder_mode === "interior" ? "🛋️ Interior" : "🏛️ Exterior"}
+                      </span>
+                      {editingId === entry.id ? (
+                        <input
+                          type="text"
+                          className="history-item-project-input"
+                          value={editValue}
+                          placeholder="Project name…"
+                          autoFocus
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onBlur={() => saveProjectName(entry.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveProjectName(entry.id);
+                            if (e.key === "Escape") setEditingId(null);
+                          }}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className="history-item-project"
+                          onClick={() => startEditing(entry)}
+                          title="Rename project"
+                        >
+                          {entry.project_name || "+ Add project"}
+                        </button>
+                      )}
                     </span>
                     <span className="history-item-date">
                       {new Date(entry.created_at).toLocaleDateString(undefined, {

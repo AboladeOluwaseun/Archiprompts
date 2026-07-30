@@ -17,7 +17,13 @@ import AuthModal from "@/components/AuthModal";
 import ModelUpload from "@/components/ModelUpload";
 import MaterialAssignmentList from "@/components/MaterialAssignmentList";
 import HistoryModal from "@/components/HistoryModal";
-import { saveHistoryEntry, hydrateFormSnapshot, HistoryEntry } from "@/lib/history";
+import {
+  saveHistoryEntry,
+  updateHistoryProjectName,
+  hydrateFormSnapshot,
+  HistoryEntry,
+} from "@/lib/history";
+import { fetchRenderVariants, RenderVariant } from "@/lib/renderVariants";
 
 const FREE_LIMIT = 3;
 const ANON_PROMPT_KEY = "archiprompts-anon-used";
@@ -36,7 +42,17 @@ export default function Home() {
   const [renderedImage, setRenderedImage] = useState<string | null>(null);
   const [rendering, setRendering] = useState(false);
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [refining, setRefining] = useState(false);
+  const [refineError, setRefineError] = useState<string | null>(null);
+  const [variants, setVariants] = useState<RenderVariant[]>([]);
+  const [activeVariantId, setActiveVariantId] = useState<string | null>(null);
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
+  const [projectName, setProjectName] = useState("");
+  const [projectNameSaved, setProjectNameSaved] = useState<
+    "attached" | "pending" | "failed" | null
+  >(null);
+  const historyEntryIdRef = useRef<string | null>(null);
+  const pendingHistorySaveRef = useRef<Promise<string | null> | null>(null);
   const [used, setUsed] = useState(0);
   const [isPro, setIsPro] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -208,6 +224,7 @@ export default function Home() {
       setOutput("");
       setRenderedImage(null);
       setRenderError(null);
+      setRefineError(null);
     },
     [],
   );
@@ -263,11 +280,23 @@ export default function Home() {
     setOutput(prompt);
     setRenderedImage(null);
     setRenderError(null);
+    setRefineError(null);
+    setVariants([]);
+    setActiveVariantId(null);
+    historyEntryIdRef.current = null;
+    pendingHistorySaveRef.current = null;
 
     if (userEmail) {
-      saveHistoryEntry(form, prompt).catch((error) =>
-        console.warn("[History] save failed", error),
-      );
+      const savePromise = saveHistoryEntry(form, prompt, projectName)
+        .then((id) => {
+          historyEntryIdRef.current = id;
+          return id;
+        })
+        .catch((error) => {
+          console.warn("[History] save failed", error);
+          return null;
+        });
+      pendingHistorySaveRef.current = savePromise;
     }
 
     if (!isPro) {
@@ -291,14 +320,56 @@ export default function Home() {
     }
   };
 
-  const handleRestoreFromHistory = (entry: HistoryEntry) => {
+  const persistProjectName = async () => {
+    if (historyEntryIdRef.current) {
+      const ok = await updateHistoryProjectName(
+        historyEntryIdRef.current,
+        projectName,
+      );
+      setProjectNameSaved(ok ? "attached" : "failed");
+    } else {
+      // Nothing generated in this session (or the page was reloaded and
+      // the tracked entry was lost) — there's no row to attach to yet.
+      // Say so explicitly rather than claiming a save that didn't happen;
+      // it'll apply automatically the next time Generate runs.
+      setProjectNameSaved("pending");
+    }
+    setTimeout(() => setProjectNameSaved(null), 2500);
+  };
+
+  const handleRestoreFromHistory = async (entry: HistoryEntry) => {
     setForm(hydrateFormSnapshot(entry.form_snapshot));
     setOutput(entry.prompt_text);
-    setRenderedImage(null);
+    setRenderedImage(entry.rendered_image_url || null);
     setRenderError(null);
+    setRefineError(null);
     setReferenceImage(null);
+    setProjectName(entry.project_name || "");
+    historyEntryIdRef.current = entry.id;
+    pendingHistorySaveRef.current = null;
     setShowHistory(false);
     outputPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    if (entry.reference_image_url) {
+      try {
+        const response = await fetch(entry.reference_image_url);
+        const blob = await response.blob();
+        const filename = entry.reference_image_url.split("/").pop() || "reference.png";
+        setReferenceImage(new File([blob], filename, { type: blob.type || "image/png" }));
+      } catch (error) {
+        console.warn("[History] Failed to restore reference image", error);
+      }
+    }
+
+    // Bring in the full version history for this entry so past renders
+    // stay browsable, not just the latest one.
+    const historyVariants = await fetchRenderVariants(entry.id);
+    setVariants(historyVariants);
+    const latest = historyVariants[historyVariants.length - 1];
+    setActiveVariantId(latest ? latest.id : null);
+    if (latest) {
+      setRenderedImage(latest.image_url);
+    }
   };
 
   const handleGenerateAndReveal = () => {
@@ -338,8 +409,19 @@ export default function Home() {
         ? await sb.auth.getSession()
         : { data: { session: null } };
 
+      // The history save from Generate is async — if Render Preview is
+      // clicked before it resolves, wait for it rather than silently
+      // rendering an image that never gets attached to the saved entry.
+      let entryId = historyEntryIdRef.current;
+      if (!entryId && pendingHistorySaveRef.current) {
+        entryId = await pendingHistorySaveRef.current;
+      }
+
       const body = new FormData();
       body.append("prompt", output);
+      if (entryId) {
+        body.append("historyEntryId", entryId);
+      }
       if (form.revitMode && referenceImage) {
         body.append("image", referenceImage);
       }
@@ -362,12 +444,108 @@ export default function Home() {
       }
 
       setRenderedImage(data.image);
+
+      if (data.variantId && data.imageUrl && entryId) {
+        const newVariant: RenderVariant = {
+          id: data.variantId,
+          history_id: entryId,
+          image_url: data.imageUrl,
+          label: "Original",
+          parent_variant_id: null,
+          created_at: new Date().toISOString(),
+        };
+        setVariants((prev) => [...prev, newVariant]);
+        setActiveVariantId(newVariant.id);
+      }
     } catch (error) {
       console.warn("[Render] request failed", error);
       setRenderError("Rendering failed. Please try again.");
     } finally {
       setRendering(false);
     }
+  };
+
+  const handleRefine = async (instructions: string) => {
+    if (!renderedImage || refining) return;
+
+    if (!userEmail) {
+      setShowAuth(true);
+      return;
+    }
+    if (!isPro) {
+      setShowModal(true);
+      return;
+    }
+
+    setRefining(true);
+    setRefineError(null);
+
+    try {
+      const sb = getSupabaseBrowser();
+      const { data: { session } = { session: null } } = sb
+        ? await sb.auth.getSession()
+        : { data: { session: null } };
+
+      const imageBlob = await (await fetch(renderedImage)).blob();
+
+      let entryId = historyEntryIdRef.current;
+      if (!entryId && pendingHistorySaveRef.current) {
+        entryId = await pendingHistorySaveRef.current;
+      }
+
+      const body = new FormData();
+      body.append("instructions", instructions);
+      body.append("image", imageBlob, "render.png");
+      if (entryId) {
+        body.append("historyEntryId", entryId);
+      }
+      if (activeVariantId) {
+        body.append("baseVariantId", activeVariantId);
+      }
+
+      const response = await fetch("/api/render/refine", {
+        method: "POST",
+        headers: {
+          ...(session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {}),
+        },
+        body,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setRefineError(data?.error || "Refinement failed. Please try again.");
+        return;
+      }
+
+      setRenderedImage(data.image);
+
+      if (data.variantId && data.imageUrl && entryId) {
+        const newVariant: RenderVariant = {
+          id: data.variantId,
+          history_id: entryId,
+          image_url: data.imageUrl,
+          label: instructions.slice(0, 200),
+          parent_variant_id: activeVariantId,
+          created_at: new Date().toISOString(),
+        };
+        setVariants((prev) => [...prev, newVariant]);
+        setActiveVariantId(newVariant.id);
+      }
+    } catch (error) {
+      console.warn("[Refine] request failed", error);
+      setRefineError("Refinement failed. Please try again.");
+    } finally {
+      setRefining(false);
+    }
+  };
+
+  const handleSelectVariant = (variant: RenderVariant) => {
+    setRenderedImage(variant.image_url);
+    setActiveVariantId(variant.id);
+    setRefineError(null);
   };
 
   const handleGenerateOptions = async (section: keyof BuilderOptions) => {
@@ -1201,6 +1379,45 @@ export default function Home() {
                 </div>
               </div>
 
+              <div className="fg project-name-field">
+                <label>Project Name (optional)</label>
+                <div className="project-name-row">
+                  <input
+                    type="text"
+                    placeholder="e.g. Villa A — used to group multiple views in Archive"
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    onBlur={persistProjectName}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        persistProjectName();
+                        e.currentTarget.blur();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className={`project-name-save-btn${projectNameSaved === "attached" ? " saved" : ""}${projectNameSaved === "pending" ? " pending" : ""}${projectNameSaved === "failed" ? " failed" : ""}`}
+                    onClick={persistProjectName}
+                    title={
+                      projectNameSaved === "pending"
+                        ? "Nothing generated yet in this session — will attach to your next Generate"
+                        : projectNameSaved === "failed"
+                          ? "Couldn't save — check you're signed in, or try again"
+                          : undefined
+                    }
+                  >
+                    {projectNameSaved === "attached"
+                      ? "Saved ✓"
+                      : projectNameSaved === "pending"
+                        ? "Will apply next"
+                        : projectNameSaved === "failed"
+                          ? "Save failed"
+                          : "Save"}
+                  </button>
+                </div>
+              </div>
+
               <OutputPanel
                 output={output}
                 copied={copied}
@@ -1220,6 +1437,12 @@ export default function Home() {
                 rendering={rendering}
                 renderError={renderError}
                 onRenderPreview={handleRenderPreview}
+                refining={refining}
+                refineError={refineError}
+                onRefine={handleRefine}
+                variants={variants}
+                activeVariantId={activeVariantId}
+                onSelectVariant={handleSelectVariant}
               />
             </div>
 

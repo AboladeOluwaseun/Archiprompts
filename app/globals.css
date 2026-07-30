@@ -1320,9 +1320,16 @@ textarea::placeholder {
   border: 1px solid var(--border);
 }
 
+.render-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+
 .render-download {
   display: inline-block;
-  margin-top: 8px;
   font-family: "JetBrains Mono", monospace;
   font-size: 11px;
   letter-spacing: 0.5px;
@@ -1334,6 +1341,61 @@ textarea::placeholder {
   border-color: var(--gold);
 }
 
+.variant-current-label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 55%;
+}
+
+.variant-strip {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.variant-thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: 6px;
+  border: 2px solid var(--border-dim);
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--dark-3);
+  transition: border-color 0.15s;
+}
+.variant-thumb:hover {
+  border-color: var(--border);
+}
+.variant-thumb.active {
+  border-color: var(--gold);
+}
+.variant-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.variant-thumb-index {
+  position: absolute;
+  bottom: 2px;
+  right: 3px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
 .render-preview-loading {
   display: flex;
   flex-direction: column;
@@ -1342,6 +1404,67 @@ textarea::placeholder {
   padding: 28px 16px;
   border: 1px dashed var(--border-dim);
   border-radius: var(--r);
+}
+
+/* ─── REFINE (post-render staging) ───────────────────────────── */
+.refine-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-dim);
+}
+
+.refine-label {
+  display: block;
+  font-family: "Syne", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.refine-sublabel {
+  display: block;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.refine-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.refine-input {
+  width: 100%;
+  resize: vertical;
+  margin-bottom: 10px;
+}
+
+.refine-btn {
+  width: 100%;
+  padding: 11px;
+  background: transparent;
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  font-family: "Syne", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.refine-btn:hover:not(:disabled) {
+  background: rgba(201, 168, 76, 0.08);
+}
+.refine-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 .render-preview-loading p {
   font-size: 12px;
@@ -1615,6 +1738,15 @@ textarea::placeholder {
   border-radius: var(--r);
 }
 
+.history-item-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--border-dim);
+}
+
 .history-item-main {
   min-width: 0;
   flex: 1;
@@ -1628,11 +1760,62 @@ textarea::placeholder {
   margin-bottom: 4px;
 }
 
+.history-item-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .history-item-mode {
   font-family: "Syne", sans-serif;
   font-size: 11px;
   font-weight: 700;
   color: var(--gold);
+}
+
+.history-item-project {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: rgba(201, 168, 76, 0.08);
+  border: 1px solid var(--border-dim);
+  border-radius: 20px;
+  padding: 2px 9px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.history-item-project:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.history-item-project-input {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  color: var(--text);
+  background: var(--dark-3);
+  border: 1px solid var(--gold);
+  border-radius: 20px;
+  padding: 2px 9px;
+  width: 140px;
+}
+
+.history-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 24px 12px;
+}
+.history-filter label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.history-filter select {
+  flex: 1;
 }
 
 .history-item-date {
@@ -2142,6 +2325,46 @@ textarea::placeholder {
   .material-row-remove {
     width: 100%;
   }
+}
+
+/* ─── PROJECT NAME FIELD ──────────────────────────────────────── */
+.project-name-row {
+  display: flex;
+  gap: 8px;
+}
+.project-name-row input {
+  flex: 1;
+}
+
+.project-name-save-btn {
+  flex-shrink: 0;
+  padding: 0 16px;
+  background: var(--gold);
+  color: var(--dark);
+  border: none;
+  border-radius: var(--r);
+  font-family: "Syne", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.project-name-save-btn:hover {
+  background: var(--gold-light);
+}
+.project-name-save-btn.saved {
+  background: var(--success);
+  color: var(--dark);
+}
+.project-name-save-btn.pending {
+  background: var(--warn);
+  color: var(--dark);
+}
+.project-name-save-btn.failed {
+  background: transparent;
+  border: 1px solid #e55;
+  color: #e55;
 }
 
 /* ─── MODEL UPLOAD (Revit / Model Lock reference) ────────────── */

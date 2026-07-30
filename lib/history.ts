@@ -1,5 +1,6 @@
 import { getSupabaseBrowser } from "./supabase";
-import { PromptFormData, DEFAULT_FORM_DATA, AiTool, BuilderMode } from "./types";
+import { PromptFormData, DEFAULT_FORM_DATA, AiTool, BuilderMode, SelectOption } from "./types";
+import { CAMERA_ANGLES, INTERIOR_CAMERA_ANGLES } from "./formOptions";
 
 /**
  * Prompt History
@@ -18,34 +19,64 @@ export interface HistoryEntry {
   summary: string;
   prompt_text: string;
   form_snapshot: PromptFormData;
+  project_name: string | null;
+  rendered_image_url: string | null;
+  reference_image_url: string | null;
   created_at: string;
+}
+
+// Maps a long descriptive field value back to its short dropdown label
+// (e.g. "front elevation view, straight-on..." -> "Front Elevation"), so
+// the Archive summary distinguishes different views of the SAME building
+// instead of showing an identical building-type/style title for each one.
+function shortLabel(value: string, options: SelectOption[]): string {
+  const match = options.find((o) => o.value === value);
+  if (match) return match.label;
+  return value.split(",")[0].trim();
 }
 
 function buildSummary(form: PromptFormData): string {
   if (form.builderMode === "interior") {
-    return [form.roomType, form.interiorStyle].filter(Boolean).join(" · ") || "Interior render";
+    const angle = shortLabel(form.interiorCameraAngle, INTERIOR_CAMERA_ANGLES);
+    return (
+      [form.roomType, form.interiorStyle, angle].filter(Boolean).join(" · ") ||
+      "Interior render"
+    );
   }
-  return [form.buildingType, form.archStyle].filter(Boolean).join(" · ") || "Exterior render";
+  const angle = shortLabel(form.cameraAngle, CAMERA_ANGLES);
+  return (
+    [form.buildingType, form.archStyle, angle].filter(Boolean).join(" · ") ||
+    "Exterior render"
+  );
 }
 
 export async function saveHistoryEntry(
   form: PromptFormData,
   promptText: string,
-): Promise<void> {
+  projectName?: string,
+): Promise<string | null> {
   const sb = getSupabaseBrowser();
-  if (!sb) return;
+  if (!sb) return null;
 
-  const { error } = await sb.from("prompt_history").insert({
-    builder_mode: form.builderMode,
-    ai_tool: form.aiTool,
-    summary: buildSummary(form),
-    prompt_text: promptText,
-    form_snapshot: form,
-  });
+  const { data, error } = await sb
+    .from("prompt_history")
+    .insert({
+      builder_mode: form.builderMode,
+      ai_tool: form.aiTool,
+      summary: buildSummary(form),
+      prompt_text: promptText,
+      form_snapshot: form,
+      project_name: projectName?.trim() || null,
+    })
+    .select("id")
+    .single();
 
   if (error) {
     console.warn("[History] save failed", error);
+    return null;
   }
+
+  return data?.id ?? null;
 }
 
 export async function fetchHistory(limit = 30): Promise<HistoryEntry[]> {
@@ -54,7 +85,7 @@ export async function fetchHistory(limit = 30): Promise<HistoryEntry[]> {
 
   const { data, error } = await sb
     .from("prompt_history")
-    .select("id, builder_mode, ai_tool, summary, prompt_text, form_snapshot, created_at")
+    .select("id, builder_mode, ai_tool, summary, prompt_text, form_snapshot, project_name, rendered_image_url, reference_image_url, created_at")
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -64,6 +95,39 @@ export async function fetchHistory(limit = 30): Promise<HistoryEntry[]> {
   }
 
   return (data as HistoryEntry[]) || [];
+}
+
+export async function updateHistoryProjectName(
+  id: string,
+  projectName: string,
+): Promise<boolean> {
+  const sb = getSupabaseBrowser();
+  if (!sb) return false;
+
+  // Supabase/PostgREST returns no error when an update matches zero rows
+  // (e.g. RLS silently filters the row out) — `.select()` forces it to
+  // return the affected row(s) so a silent no-op can actually be told
+  // apart from a real success, instead of reporting false confidence.
+  const { data, error } = await sb
+    .from("prompt_history")
+    .update({ project_name: projectName.trim() || null })
+    .eq("id", id)
+    .select("id");
+
+  if (error) {
+    console.warn("[History] project rename failed", error);
+    return false;
+  }
+
+  if (!data || data.length === 0) {
+    console.warn(
+      "[History] project rename matched no rows — check the update RLS policy (migration 0004) is applied",
+      id,
+    );
+    return false;
+  }
+
+  return true;
 }
 
 export async function deleteHistoryEntry(id: string): Promise<boolean> {

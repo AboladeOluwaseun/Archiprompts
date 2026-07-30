@@ -1,6 +1,7 @@
+import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseServer } from "@/lib/supabase";
 import { sanitizePromptForImageGen } from "@/lib/promptEngine";
+import { resolveRenderAccess } from "@/lib/renderAccess";
 
 /**
  * Preview Render Endpoint
@@ -21,43 +22,6 @@ import { sanitizePromptForImageGen } from "@/lib/promptEngine";
 
 const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const MAX_REFERENCE_BYTES = 15 * 1024 * 1024;
-
-async function resolveIsPro(token: string | null): Promise<{ ok: boolean; reason?: string }> {
-  const supabase = getSupabaseServer();
-  if (!supabase) {
-    return { ok: false, reason: "Rendering requires a configured account backend." };
-  }
-  if (!token) {
-    return { ok: false, reason: "Sign in with a Pro account to render previews." };
-  }
-
-  const { data: userData, error: userError } = await supabase.auth.getUser(token);
-  if (userError || !userData?.user) {
-    return { ok: false, reason: "Your session has expired — please sign in again." };
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("plan, plan_expires_at")
-    .eq("id", userData.user.id)
-    .single();
-
-  if (profileError || !profile) {
-    return { ok: false, reason: "Upgrade to Pro to render preview images." };
-  }
-
-  if (profile.plan === "free" || !profile.plan) {
-    return { ok: false, reason: "Upgrade to Pro to render preview images." };
-  }
-
-  if (profile.plan === "monthly" && profile.plan_expires_at) {
-    if (new Date(profile.plan_expires_at) < new Date()) {
-      return { ok: false, reason: "Your Pro plan has expired — renew to keep rendering previews." };
-    }
-  }
-
-  return { ok: true };
-}
 
 export async function POST(req: NextRequest) {
   const openAiKey = process.env.OPENAI_API_KEY;
@@ -84,6 +48,10 @@ export async function POST(req: NextRequest) {
   const referenceImage =
     imageEntry instanceof File && imageEntry.size > 0 ? imageEntry : null;
 
+  const historyEntryIdRaw = formData.get("historyEntryId");
+  const historyEntryId =
+    typeof historyEntryIdRaw === "string" && historyEntryIdRaw ? historyEntryIdRaw : null;
+
   if (referenceImage) {
     if (!ACCEPTED_IMAGE_TYPES.includes(referenceImage.type)) {
       return NextResponse.json(
@@ -102,7 +70,7 @@ export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization") || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
-  const access = await resolveIsPro(token);
+  const access = await resolveRenderAccess(token);
   if (!access.ok) {
     return NextResponse.json({ error: access.reason }, { status: 403 });
   }
@@ -168,7 +136,95 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ image: `data:image/png;base64,${b64}` });
+    // Persist the render as a new variant (not an overwrite) so past
+    // versions stay browsable, plus the reference image that produced
+    // it, if any. Best-effort — a persistence failure shouldn't stop
+    // the user from seeing their image.
+    let imageUrl: string | null = null;
+    let referenceImageUrl: string | null = null;
+    let variantId: string | null = null;
+    if (access.supabase && access.userId) {
+      try {
+        variantId = randomUUID();
+        const path = `${access.userId}/${historyEntryId ?? "unsaved"}/${variantId}.png`;
+        const { error: uploadError } = await access.supabase.storage
+          .from("renders")
+          .upload(path, Buffer.from(b64, "base64"), {
+            contentType: "image/png",
+            upsert: true,
+          });
+
+        if (uploadError) {
+          console.warn("[Render] Storage upload failed", uploadError);
+          variantId = null;
+        } else {
+          imageUrl = access.supabase.storage.from("renders").getPublicUrl(path)
+            .data.publicUrl;
+        }
+
+        if (referenceImage) {
+          const refExt = referenceImage.type.split("/")[1] || "png";
+          const refPath = `${access.userId}/${historyEntryId ?? "unsaved"}-reference.${refExt}`;
+          const refBuffer = Buffer.from(await referenceImage.arrayBuffer());
+          const { error: refUploadError } = await access.supabase.storage
+            .from("renders")
+            .upload(refPath, refBuffer, {
+              contentType: referenceImage.type,
+              upsert: true,
+            });
+
+          if (refUploadError) {
+            console.warn("[Render] Reference image upload failed", refUploadError);
+          } else {
+            referenceImageUrl = access.supabase.storage
+              .from("renders")
+              .getPublicUrl(refPath).data.publicUrl;
+          }
+        }
+
+        if (historyEntryId && imageUrl && variantId) {
+          const { error: variantError } = await access.supabase
+            .from("render_variants")
+            .insert({
+              id: variantId,
+              history_id: historyEntryId,
+              user_id: access.userId,
+              image_url: imageUrl,
+              label: "Original",
+            });
+
+          if (variantError) {
+            console.warn("[Render] Variant insert failed", variantError);
+            variantId = null;
+          }
+        }
+
+        if (historyEntryId && (imageUrl || referenceImageUrl)) {
+          const updatePayload: Record<string, string> = {};
+          if (imageUrl) updatePayload.rendered_image_url = imageUrl;
+          if (referenceImageUrl) updatePayload.reference_image_url = referenceImageUrl;
+
+          const { error: updateError } = await access.supabase
+            .from("prompt_history")
+            .update(updatePayload)
+            .eq("id", historyEntryId)
+            .eq("user_id", access.userId);
+
+          if (updateError) {
+            console.warn("[Render] History update failed", updateError);
+          }
+        }
+      } catch (persistError) {
+        console.warn("[Render] Persisting render failed", persistError);
+      }
+    }
+
+    return NextResponse.json({
+      image: `data:image/png;base64,${b64}`,
+      imageUrl,
+      referenceImageUrl,
+      variantId,
+    });
   } catch (error) {
     console.error("[Render] Unexpected error", error);
     return NextResponse.json(
