@@ -15,6 +15,15 @@ import { resolveRenderAccess } from "@/lib/renderAccess";
  * this is what actually backs the "Revit Model Lock" prompt language in
  * lib/promptEngine.ts, which previously had no real image behind it.
  *
+ * When the prompt being rendered belongs to a named project (see
+ * lib/history.ts), up to two of the most recent already-rendered images
+ * from OTHER prompts in that same project are pulled in as ADDITIONAL
+ * reference images — so a new view (e.g. the side elevation) matches the
+ * materials, color, and lighting style already established by an earlier
+ * view (e.g. the front elevation), instead of only sharing text settings.
+ * gpt-image-2 accepts multiple images per edit call via repeated `image[]`
+ * fields, confirmed directly against the live API before wiring this in.
+ *
  * Gated to Pro accounts server-side (not just in the UI) because every
  * call costs real OpenAI credit — the Bearer token must belong to a
  * session whose profile has an active paid plan.
@@ -22,6 +31,7 @@ import { resolveRenderAccess } from "@/lib/renderAccess";
 
 const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const MAX_REFERENCE_BYTES = 15 * 1024 * 1024;
+const MAX_PROJECT_CONTEXT_IMAGES = 2;
 
 export async function POST(req: NextRequest) {
   const openAiKey = process.env.OPENAI_API_KEY;
@@ -75,16 +85,78 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: access.reason }, { status: 403 });
   }
 
-  const imagePrompt = sanitizePromptForImageGen(rawPrompt).slice(0, 4000);
+  let imagePrompt = sanitizePromptForImageGen(rawPrompt).slice(0, 4000);
+
+  // Pull in prior renders from the same named project (if any) as extra
+  // style/material reference images — best-effort, never blocks the
+  // render if the lookup or a fetch fails.
+  const projectContextImages: Blob[] = [];
+  if (access.supabase && access.userId && historyEntryId) {
+    try {
+      const { data: currentEntry } = await access.supabase
+        .from("prompt_history")
+        .select("project_name")
+        .eq("id", historyEntryId)
+        .eq("user_id", access.userId)
+        .single();
+
+      const projectName = currentEntry?.project_name;
+      if (projectName) {
+        const { data: siblings } = await access.supabase
+          .from("prompt_history")
+          .select("rendered_image_url")
+          .eq("project_name", projectName)
+          .eq("user_id", access.userId)
+          .neq("id", historyEntryId)
+          .not("rendered_image_url", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(MAX_PROJECT_CONTEXT_IMAGES);
+
+        for (const sibling of siblings || []) {
+          if (!sibling.rendered_image_url) continue;
+          try {
+            const imgRes = await fetch(sibling.rendered_image_url);
+            if (imgRes.ok) {
+              projectContextImages.push(await imgRes.blob());
+            }
+          } catch (fetchError) {
+            console.warn("[Render] Failed to fetch project context image", fetchError);
+          }
+        }
+      }
+    } catch (lookupError) {
+      console.warn("[Render] Project context lookup failed", lookupError);
+    }
+  }
+
+  if (projectContextImages.length > 0) {
+    imagePrompt +=
+      "\n\nADDITIONAL REFERENCE IMAGES: the other attached image(s) are already-" +
+      "rendered views from THIS SAME project. Match their exact materials, " +
+      "color palette, lighting mood, and overall finish quality. Do NOT copy " +
+      "their camera angle, composition, or contents — render only the view " +
+      "described above, with matching style.";
+  }
 
   try {
     let response: Response;
 
+    const allImages: { data: Blob; filename: string }[] = [];
     if (referenceImage) {
+      allImages.push({ data: referenceImage, filename: referenceImage.name || "reference.png" });
+    }
+    projectContextImages.forEach((blob, i) => {
+      allImages.push({ data: blob, filename: `project-context-${i}.png` });
+    });
+
+    if (allImages.length > 0) {
       const openAiForm = new FormData();
       openAiForm.append("model", "gpt-image-2");
       openAiForm.append("prompt", imagePrompt);
-      openAiForm.append("image", referenceImage, referenceImage.name || "reference.png");
+      const imageField = allImages.length > 1 ? "image[]" : "image";
+      for (const img of allImages) {
+        openAiForm.append(imageField, img.data, img.filename);
+      }
       openAiForm.append("size", "1536x1024");
       openAiForm.append("quality", "medium");
       openAiForm.append("n", "1");

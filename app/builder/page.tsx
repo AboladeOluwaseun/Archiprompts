@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { PromptFormData, AiTool, BuilderMode, DEFAULT_FORM_DATA } from "@/lib/types";
 import { buildPrompt } from "@/lib/promptEngine";
@@ -21,6 +22,7 @@ import {
   saveHistoryEntry,
   updateHistoryProjectName,
   hydrateFormSnapshot,
+  fetchHistoryEntryById,
   HistoryEntry,
 } from "@/lib/history";
 import { fetchRenderVariants, RenderVariant } from "@/lib/renderVariants";
@@ -37,6 +39,16 @@ const AI_TOOLS: { id: AiTool; name: string; desc: string }[] = [
 ];
 
 export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <BuilderPage />
+    </Suspense>
+  );
+}
+
+function BuilderPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [form, setForm] = useState<PromptFormData>(DEFAULT_FORM_DATA);
   const [output, setOutput] = useState("");
   const [renderedImage, setRenderedImage] = useState<string | null>(null);
@@ -372,6 +384,28 @@ export default function Home() {
     }
   };
 
+  // Deep-linked from the Projects page: either restore a specific saved
+  // prompt ("Load" there), or start a blank render already tagged to a
+  // project ("+ New Render for X"). The query param is cleared right
+  // after so a refresh/back-navigation doesn't re-trigger it.
+  useEffect(() => {
+    const restoreId = searchParams.get("restore");
+    const newForProject = searchParams.get("newForProject");
+
+    if (restoreId) {
+      fetchHistoryEntryById(restoreId).then((entry) => {
+        if (entry) handleRestoreFromHistory(entry);
+      });
+      router.replace("/builder");
+    } else if (newForProject) {
+      setProjectName(newForProject);
+      router.replace("/builder");
+    }
+    // Intentionally run once on mount — searchParams/router change on
+    // every navigation, which would re-fire this and loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleGenerateAndReveal = () => {
     if (isLocked) {
       setShowModal(true);
@@ -695,7 +729,20 @@ export default function Home() {
 
           <div className="builder-topbar-actions">
             <nav className="builder-nav-links">
-              <a href="#">Models</a>
+              <a
+                href="/builder/projects"
+                onClick={(e) => {
+                  if (!userEmail) {
+                    e.preventDefault();
+                    setShowAuth(true);
+                    return;
+                  }
+                  e.preventDefault();
+                  router.push("/builder/projects");
+                }}
+              >
+                Projects
+              </a>
               <a
                 href="#"
                 onClick={(e) => {
@@ -1384,7 +1431,7 @@ export default function Home() {
                 <div className="project-name-row">
                   <input
                     type="text"
-                    placeholder="e.g. Villa A — used to group multiple views in Archive"
+                    placeholder="e.g. Villa A — groups all renders for this building on the Projects page"
                     value={projectName}
                     onChange={(e) => setProjectName(e.target.value)}
                     onBlur={persistProjectName}

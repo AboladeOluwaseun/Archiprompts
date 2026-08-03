@@ -97,6 +97,24 @@ export async function fetchHistory(limit = 30): Promise<HistoryEntry[]> {
   return (data as HistoryEntry[]) || [];
 }
 
+export async function fetchHistoryEntryById(id: string): Promise<HistoryEntry | null> {
+  const sb = getSupabaseBrowser();
+  if (!sb) return null;
+
+  const { data, error } = await sb
+    .from("prompt_history")
+    .select("id, builder_mode, ai_tool, summary, prompt_text, form_snapshot, project_name, rendered_image_url, reference_image_url, created_at")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    console.warn("[History] fetch by id failed", error);
+    return null;
+  }
+
+  return data as HistoryEntry;
+}
+
 export async function updateHistoryProjectName(
   id: string,
   projectName: string,
