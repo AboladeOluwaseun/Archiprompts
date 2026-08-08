@@ -20,6 +20,19 @@ function formatMaterialSchedule(assignments: MaterialAssignment[]): string {
     .join('\n');
 }
 
+// How strictly the reference image should be followed — a gradient on
+// top of the existing on/off revitMode toggle, so "geometry lock" isn't
+// all-or-nothing once a reference is actually attached.
+function refStrengthClause(strength: PromptFormData['referenceStrength']): string {
+  if (strength === 'balanced') {
+    return ' Follow the attached reference image for overall massing and proportion; minor refinement of detail is acceptable.';
+  }
+  if (strength === 'loose') {
+    return ' Use the attached reference image as loose guidance for massing; the written description above takes priority where they disagree.';
+  }
+  return ' The attached reference image is the authority on massing, proportion, and openings — match it exactly and change nothing structural.';
+}
+
 export function buildPrompt(data: PromptFormData): string {
   // ── Route by mode ─────────────────────────────────────────────
   if (data.builderMode === 'interior') {
@@ -54,6 +67,7 @@ function buildExteriorPrompt(data: PromptFormData): string {
     cameraAngle,
     aiTool,
     extraNotes,
+    referenceStrength,
   } = data;
 
   const bt = buildingType || 'commercial building';
@@ -97,7 +111,8 @@ function buildExteriorPrompt(data: PromptFormData): string {
       'massing. Do NOT add floors, wings, or volumes that are not in the reference. ' +
       'Do NOT change the building silhouette. Treat the Revit screenshot as the ' +
       'absolute geometric authority — your job is only to add materials, lighting, ' +
-      'and context to exactly what is shown.';
+      'and context to exactly what is shown.' +
+      refStrengthClause(referenceStrength);
   }
 
   // ── Materials: per-zone facade material schedule ──────────────
@@ -218,6 +233,7 @@ function buildInteriorPrompt(data: PromptFormData): string {
     revitMode,
     aiTool,
     extraNotes,
+    referenceStrength,
   } = data;
 
   // ── Tool prefix / suffix ──────────────────────────────────────
@@ -248,7 +264,8 @@ function buildInteriorPrompt(data: PromptFormData): string {
       'shown in the reference. Do NOT redesign the spatial layout, ceiling heights, ' +
       'window positions, or room proportions. Treat the Revit screenshot as the ' +
       'absolute geometric authority — your job is only to apply materials, furniture, ' +
-      'lighting and atmosphere to exactly the space shown.';
+      'lighting and atmosphere to exactly the space shown.' +
+      refStrengthClause(referenceStrength);
   }
 
   // ── Assemble interior prompt ──────────────────────────────────

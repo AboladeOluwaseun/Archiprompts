@@ -1,5 +1,14 @@
 import { SelectOption, ChipOption } from "./types";
 
+// Maps a long descriptive field value back to its short dropdown label
+// (e.g. "front elevation view, straight-on..." -> "Front Elevation"), so
+// summaries stay readable instead of showing the full prompt-length value.
+export function shortLabel(value: string, options: SelectOption[]): string {
+  const match = options.find((o) => o.value === value);
+  if (match) return match.label;
+  return value.split(",")[0].trim();
+}
+
 export interface BuilderOptions {
   // Exterior options
   buildingTypes: SelectOption[];

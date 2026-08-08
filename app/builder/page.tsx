@@ -11,13 +11,11 @@ import { PRESETS, applyPreset, Preset } from "@/lib/presets";
 
 import SelectField from "@/components/SelectField";
 import ChipGroup from "@/components/ChipGroup";
-import ToolCard from "@/components/ToolCard";
 import OutputPanel from "@/components/OutputPanel";
-import PricingModal from "@/components/PricingModal";
 import AuthModal from "@/components/AuthModal";
 import ModelUpload from "@/components/ModelUpload";
 import MaterialAssignmentList from "@/components/MaterialAssignmentList";
-import HistoryModal from "@/components/HistoryModal";
+import CollapsibleBlock from "@/components/CollapsibleBlock";
 import {
   saveHistoryEntry,
   updateHistoryProjectName,
@@ -26,6 +24,20 @@ import {
   HistoryEntry,
 } from "@/lib/history";
 import { fetchRenderVariants, RenderVariant } from "@/lib/renderVariants";
+import {
+  summarizeProgramContext,
+  summarizeMassing,
+  summarizeMateriality,
+  summarizeFacadeSystems,
+  summarizeGlazing,
+  summarizeRoof,
+  summarizeAtmosphere,
+  summarizeRoomStyle,
+  summarizeInteriorMaterials,
+  summarizeCeilingLighting,
+  summarizeCameraAtmosphere,
+  summarizeNotes,
+} from "@/lib/blockSummaries";
 
 const FREE_LIMIT = 3;
 const ANON_PROMPT_KEY = "archiprompts-anon-used";
@@ -54,6 +66,14 @@ function BuilderPage() {
   const [renderedImage, setRenderedImage] = useState<string | null>(null);
   const [rendering, setRendering] = useState(false);
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [failureType, setFailureType] = useState<
+    "timeout" | "reference" | "plan" | "cancelled" | "generic" | null
+  >(null);
+  const [renderStage, setRenderStage] = useState(0);
+  const [renderElapsed, setRenderElapsed] = useState(0);
+  const [projectRefsUsed, setProjectRefsUsed] = useState(0);
+  const renderAbortRef = useRef<AbortController | null>(null);
+  const renderTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [refining, setRefining] = useState(false);
   const [refineError, setRefineError] = useState<string | null>(null);
   const [variants, setVariants] = useState<RenderVariant[]>([]);
@@ -67,13 +87,9 @@ function BuilderPage() {
   const pendingHistorySaveRef = useRef<Promise<string | null> | null>(null);
   const [used, setUsed] = useState(0);
   const [isPro, setIsPro] = useState(false);
-  const [showModal, setShowModal] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [payEmail, setPayEmail] = useState("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sessionDebug, setSessionDebug] = useState("checking auth...");
   const [options, setOptions] = useState<BuilderOptions>(
@@ -84,7 +100,27 @@ function BuilderPage() {
   >(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
-  const outputPanelRef = useRef<HTMLDivElement | null>(null);
+  const outputPanelRef = useRef<HTMLElement | null>(null);
+  const [allOpen, setAllOpen] = useState(false);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [expandSignal, setExpandSignal] = useState<number | undefined>(undefined);
+  const [collapseSignal, setCollapseSignal] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (renderTimerRef.current) clearInterval(renderTimerRef.current);
+      renderAbortRef.current?.abort();
+    };
+  }, []);
+
+  const toggleAllBlocks = () => {
+    if (allOpen) {
+      setCollapseSignal((n) => (n ?? 0) + 1);
+    } else {
+      setExpandSignal((n) => (n ?? 0) + 1);
+    }
+    setAllOpen((prev) => !prev);
+  };
 
   const {
     buildingTypes,
@@ -143,7 +179,6 @@ function BuilderPage() {
       const email = session.user.email;
       setSessionDebug(`session active: ${email}`);
       setUserEmail(email);
-      setPayEmail(email);
       setShowAuth(false);
 
       const { data: profile, error } = await sb
@@ -232,14 +267,24 @@ function BuilderPage() {
   const handleApplyPreset = useCallback(
     (preset: Preset) => {
       setForm((prev) => applyPreset(preset, prev.aiTool));
+      setSelectedPresetId(preset.id);
       setReferenceImage(null);
       setOutput("");
       setRenderedImage(null);
       setRenderError(null);
+      setFailureType(null);
       setRefineError(null);
     },
     [],
   );
+
+  // Attaching a reference switches the prompt from text-to-image to
+  // image-to-image and adds the GEOMETRY LOCK clause — there's no
+  // separate manual toggle, the attachment itself is the switch.
+  const handleReferenceChange = useCallback((file: File | null) => {
+    setReferenceImage(file);
+    setForm((prev) => ({ ...prev, revitMode: !!file }));
+  }, []);
 
   // ── Form Helpers ──────────────────────────────────────────────
   const updateField = useCallback(
@@ -283,7 +328,7 @@ function BuilderPage() {
       if (!userEmail) {
         setShowAuth(true);
       } else {
-        setShowModal(true);
+        router.push("/pricing");
       }
       return;
     }
@@ -292,6 +337,7 @@ function BuilderPage() {
     setOutput(prompt);
     setRenderedImage(null);
     setRenderError(null);
+    setFailureType(null);
     setRefineError(null);
     setVariants([]);
     setActiveVariantId(null);
@@ -349,17 +395,17 @@ function BuilderPage() {
     setTimeout(() => setProjectNameSaved(null), 2500);
   };
 
-  const handleRestoreFromHistory = async (entry: HistoryEntry) => {
+  const handleRestoreFromHistory = async (entry: HistoryEntry, makeActiveVariantId?: string) => {
     setForm(hydrateFormSnapshot(entry.form_snapshot));
     setOutput(entry.prompt_text);
     setRenderedImage(entry.rendered_image_url || null);
     setRenderError(null);
+    setFailureType(null);
     setRefineError(null);
     setReferenceImage(null);
     setProjectName(entry.project_name || "");
     historyEntryIdRef.current = entry.id;
     pendingHistorySaveRef.current = null;
-    setShowHistory(false);
     outputPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
     if (entry.reference_image_url) {
@@ -377,10 +423,12 @@ function BuilderPage() {
     // stay browsable, not just the latest one.
     const historyVariants = await fetchRenderVariants(entry.id);
     setVariants(historyVariants);
-    const latest = historyVariants[historyVariants.length - 1];
-    setActiveVariantId(latest ? latest.id : null);
-    if (latest) {
-      setRenderedImage(latest.image_url);
+    const chosen = makeActiveVariantId
+      ? historyVariants.find((v) => v.id === makeActiveVariantId)
+      : historyVariants[historyVariants.length - 1];
+    setActiveVariantId(chosen ? chosen.id : null);
+    if (chosen) {
+      setRenderedImage(chosen.image_url);
     }
   };
 
@@ -390,11 +438,12 @@ function BuilderPage() {
   // after so a refresh/back-navigation doesn't re-trigger it.
   useEffect(() => {
     const restoreId = searchParams.get("restore");
+    const variantId = searchParams.get("variant");
     const newForProject = searchParams.get("newForProject");
 
     if (restoreId) {
       fetchHistoryEntryById(restoreId).then((entry) => {
-        if (entry) handleRestoreFromHistory(entry);
+        if (entry) handleRestoreFromHistory(entry, variantId || undefined);
       });
       router.replace("/builder");
     } else if (newForProject) {
@@ -408,7 +457,7 @@ function BuilderPage() {
 
   const handleGenerateAndReveal = () => {
     if (isLocked) {
-      setShowModal(true);
+      router.push("/pricing");
       return;
     }
     handleGenerate();
@@ -422,6 +471,17 @@ function BuilderPage() {
     setTimeout(() => setCopied(false), 2500);
   };
 
+  const clearRenderTimer = () => {
+    if (renderTimerRef.current) {
+      clearInterval(renderTimerRef.current);
+      renderTimerRef.current = null;
+    }
+  };
+
+  const handleCancelRender = () => {
+    renderAbortRef.current?.abort();
+  };
+
   const handleRenderPreview = async () => {
     if (!output || rendering) return;
 
@@ -430,12 +490,29 @@ function BuilderPage() {
       return;
     }
     if (!isPro) {
-      setShowModal(true);
+      router.push("/pricing");
       return;
     }
 
     setRendering(true);
     setRenderError(null);
+    setFailureType(null);
+    setRenderStage(0);
+    setRenderElapsed(0);
+
+    const controller = new AbortController();
+    renderAbortRef.current = controller;
+
+    // Cosmetic stage labels over a real in-flight request — advances on
+    // elapsed time, but is cleared and finalized the instant the actual
+    // fetch resolves rather than on a fixed fake duration.
+    renderTimerRef.current = setInterval(() => {
+      setRenderElapsed((prev) => {
+        const next = prev + 1;
+        setRenderStage(Math.min(3, Math.floor(next / 4)));
+        return next;
+      });
+    }, 1000);
 
     try {
       const sb = getSupabaseBrowser();
@@ -468,16 +545,19 @@ function BuilderPage() {
             : {}),
         },
         body,
+        signal: controller.signal,
       });
 
       const data = await response.json();
 
       if (!response.ok) {
         setRenderError(data?.error || "Rendering failed. Please try again.");
+        setFailureType(data?.failureType || "generic");
         return;
       }
 
       setRenderedImage(data.image);
+      setProjectRefsUsed(data.projectRefsUsed || 0);
 
       if (data.variantId && data.imageUrl && entryId) {
         const newVariant: RenderVariant = {
@@ -492,9 +572,17 @@ function BuilderPage() {
         setActiveVariantId(newVariant.id);
       }
     } catch (error) {
-      console.warn("[Render] request failed", error);
-      setRenderError("Rendering failed. Please try again.");
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setFailureType("cancelled");
+        setRenderError(null);
+      } else {
+        console.warn("[Render] request failed", error);
+        setRenderError("Rendering failed. Please try again.");
+        setFailureType("generic");
+      }
     } finally {
+      clearRenderTimer();
+      renderAbortRef.current = null;
       setRendering(false);
     }
   };
@@ -507,7 +595,7 @@ function BuilderPage() {
       return;
     }
     if (!isPro) {
-      setShowModal(true);
+      router.push("/pricing");
       return;
     }
 
@@ -622,95 +710,9 @@ function BuilderPage() {
     }
   };
 
-  const handlePayment = (plan: string, amount: number) => {
-    if (!userEmail) {
-      alert(
-        "Please sign in before upgrading.\n\nYou must use an account to complete the purchase.",
-      );
-      setShowAuth(true);
-      return;
-    }
-
-    const email = payEmail.trim();
-    if (!email || !email.includes("@") || !email.includes(".")) {
-      alert("Please enter a valid email address.");
-      return;
-    }
-
-    const paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
-
-    if (!paystackKey || paystackKey.startsWith("pk_test_xxxx")) {
-      // Demo mode — no Paystack configured
-      alert(
-        "⚙️ Demo Mode\n\nTo accept real payments:\n1. Sign up at paystack.com\n2. Get your Public Key from Settings → API Keys\n3. Set NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY in .env.local\n\nSimulating successful payment now...",
-      );
-      grantAccess(plan, email);
-      return;
-    }
-
-    // Real Paystack Inline JS popup
-    const w = window as unknown as Record<string, unknown>;
-    if (typeof w.PaystackPop === "undefined") {
-      alert("Paystack script not loaded. Please refresh and try again.");
-      return;
-    }
-    const PaystackPop = w.PaystackPop as {
-      setup: (config: Record<string, unknown>) => { openIframe: () => void };
-    };
-    const handler = PaystackPop.setup({
-      key: paystackKey,
-      email,
-      amount: amount * 100, // convert to kobo
-      currency: "NGN",
-      ref:
-        "AP_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8),
-      metadata: {
-        plan,
-        custom_fields: [
-          { display_name: "Plan", variable_name: "plan", value: plan },
-        ],
-      },
-      callback: (response: { reference: string }) => {
-        console.log("[Paystack] Payment success:", response.reference);
-        grantAccess(plan, email);
-      },
-      onClose: () => {
-        console.log("[Paystack] Payment popup closed.");
-      },
-    });
-    handler.openIframe();
-  };
-
-  const grantAccess = (plan: string, email: string) => {
-    setIsPro(true);
-    setShowModal(false);
-    setSuccessMsg(true);
-    setTimeout(() => setSuccessMsg(false), 7000);
-
-    // Update profile in Supabase (profile already exists from auth trigger)
-    const sb = getSupabaseBrowser();
-    if (sb) {
-      const planExpiresAt =
-        plan === "monthly"
-          ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-          : null;
-
-      sb.from("profiles")
-        .update({
-          plan,
-          plan_expires_at: planExpiresAt,
-          prompts_used: 0, // reset counter on upgrade
-        })
-        .eq("email", email)
-        .then(({ error }: { error: Error | null }) => {
-          if (error) console.warn("[Supabase] Profile update failed:", error);
-          else {
-            setUsed(0); // sync local state
-            console.log("[Supabase] Profile upgraded to", plan);
-          }
-        });
-    }
-  };
+  const quotaLabel = isPro
+    ? "Pro · unlimited prompts"
+    : `${remaining} / ${FREE_LIMIT} free prompts left`;
 
   // ── Render ────────────────────────────────────────────────────
   return (
@@ -718,46 +720,55 @@ function BuilderPage() {
       <div className="builder-shell">
         <header className="builder-topbar">
           <div className="builder-brand">
-            <div className="builder-brand-logo">AP</div>
-            <div>
-              <div className="builder-brand-name">ArchiPrompts</div>
-              <div className="builder-brand-sub">
-                Architect AI Prompt Builder
-              </div>
-            </div>
+            <span className="builder-brand-name">ArchiPrompts</span>
+            <span className="builder-brand-dot" />
           </div>
 
+          <nav className="builder-topbar-nav">
+            <a className="active">Builder</a>
+            <a
+              onClick={() => {
+                if (!userEmail) {
+                  setShowAuth(true);
+                  return;
+                }
+                router.push("/builder/projects");
+              }}
+            >
+              Projects
+            </a>
+            <a
+              onClick={() => {
+                if (!userEmail) {
+                  setShowAuth(true);
+                  return;
+                }
+                router.push("/builder/archive");
+              }}
+            >
+              Archive
+            </a>
+          </nav>
+
+          <div className="builder-topbar-project">
+            <span>PROJECT</span>
+            <input
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              onBlur={persistProjectName}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  persistProjectName();
+                  e.currentTarget.blur();
+                }
+              }}
+              placeholder="Untitled project"
+            />
+          </div>
+
+          <span className="builder-topbar-quota">{quotaLabel}</span>
+
           <div className="builder-topbar-actions">
-            <nav className="builder-nav-links">
-              <a
-                href="/builder/projects"
-                onClick={(e) => {
-                  if (!userEmail) {
-                    e.preventDefault();
-                    setShowAuth(true);
-                    return;
-                  }
-                  e.preventDefault();
-                  router.push("/builder/projects");
-                }}
-              >
-                Projects
-              </a>
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (!userEmail) {
-                    setShowAuth(true);
-                    return;
-                  }
-                  setShowHistory(true);
-                }}
-              >
-                Archive
-              </a>
-              <a href="#">Teams</a>
-            </nav>
             <button
               className="btn-sm"
               onClick={() => {
@@ -766,7 +777,7 @@ function BuilderPage() {
                   return;
                 }
                 if (isPro) return;
-                setShowModal(true);
+                router.push("/pricing");
               }}
               disabled={isPro}
             >
@@ -782,7 +793,7 @@ function BuilderPage() {
                 title={userEmail ?? "Continue as guest"}
                 onClick={() => {
                   if (!userEmail) {
-                    setShowAuth(true);
+                    router.push("/builder/account");
                   } else {
                     setShowProfileMenu((prev) => !prev);
                   }
@@ -837,76 +848,83 @@ function BuilderPage() {
 
         <main className="builder-grid">
           <section className="builder-form-column">
-            <div className="builder-summary-card">
-              <div className="builder-summary-meta">
-                Architecture-first prompt workflow
-              </div>
-              <h1>Architectural Prompt Engine</h1>
-              <p className="builder-summary-copy">
-                Build architectural image prompts with a clear
-                program-to-massing workflow. Keep the AI aligned to context,
-                form, materiality, lighting, and camera in one focused builder.
-              </p>
-            </div>
-
-            {/* ── QUICK START PRESETS ── */}
-            <div className="preset-bar">
-              <div className="preset-bar-label">
-                ⚡ Quick Start — one-click examples
-              </div>
-              <div className="preset-bar-row">
-                {PRESETS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    className="preset-card"
-                    onClick={() => handleApplyPreset(preset)}
-                  >
-                    <span className="preset-card-icon">{preset.icon}</span>
-                    <span className="preset-card-label">{preset.label}</span>
-                    <span className="preset-card-desc">{preset.description}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* ── MODE SWITCHER ── */}
             <div className="mode-switcher">
               <button
                 className={`mode-tab${!isInterior ? ' active' : ''}`}
                 onClick={() => updateField('builderMode', 'exterior' as BuilderMode)}
               >
-                <span className="mode-tab-icon">🏛️</span>
-                <span className="mode-tab-label">
-                  <span className="mode-tab-name">Exterior</span>
-                  <span className="mode-tab-sub">Facade &amp; Massing</span>
-                </span>
+                Exterior
               </button>
               <button
                 className={`mode-tab${isInterior ? ' active' : ''}`}
                 onClick={() => updateField('builderMode', 'interior' as BuilderMode)}
               >
-                <span className="mode-tab-icon">🛋️</span>
-                <span className="mode-tab-label">
-                  <span className="mode-tab-name">Interior</span>
-                  <span className="mode-tab-sub">Rooms &amp; Spaces</span>
+                Interior
+              </button>
+            </div>
+
+            {/* ── QUICK START PRESETS ── */}
+            <div className="preset-bar">
+              <div className="preset-bar-head">
+                <span className="preset-bar-label">Quick start</span>
+                <span className="preset-bar-hint">Fills every field. Two clicks to a result.</span>
+              </div>
+              <div className="preset-bar-row">
+                {PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className={`preset-card${selectedPresetId === preset.id ? ' selected' : ''}`}
+                    onClick={() => handleApplyPreset(preset)}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img className="preset-card-img" src={preset.img} alt="" />
+                    <span className="preset-card-body">
+                      <span className="preset-card-label">{preset.label}</span>
+                      <span className="preset-card-desc">{preset.description}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ── REFERENCE GEOMETRY ── */}
+            <div className="ref-geometry-block">
+              <div className="ref-geometry-head">
+                <span className="ref-geometry-label">
+                  Reference geometry <span>· optional</span>
                 </span>
+                <span className="ref-geometry-mode">
+                  {referenceImage ? "Rendering image-to-image" : "Rendering text-to-image"}
+                </span>
+              </div>
+              <ModelUpload
+                file={referenceImage}
+                onChange={handleReferenceChange}
+                refStrength={form.referenceStrength}
+                onRefStrengthChange={(v) => updateField("referenceStrength", v)}
+              />
+            </div>
+
+            <div className="design-intent-header">
+              <span className="design-intent-label">
+                DESIGN INTENT · {isInterior ? 5 : 8} BLOCKS
+              </span>
+              <button type="button" className="toggle-all-btn" onClick={toggleAllBlocks}>
+                {allOpen ? "Collapse all" : "Expand all"}
               </button>
             </div>
 
             {!isInterior && (
-              <div className="mode-section-fade">
-                <div className="builder-card">
-                  <div className="builder-card-header">
-                    <div>
-                      <h2>Block A / Program &amp; Context</h2>
-                      <p>
-                        Define the project program, context, style, and scale for a
-                        strong architectural prompt foundation.
-                      </p>
-                    </div>
-                  </div>
-
+              <div className="mode-section-fade design-intent-blocks">
+                <CollapsibleBlock
+                  index="01"
+                  title="Program & Context"
+                  summary={summarizeProgramContext(form, options)}
+                  expandSignal={expandSignal}
+                  collapseSignal={collapseSignal}
+                >
                   <div className="two-col">
                     <SelectField
                       label="Building Type"
@@ -929,47 +947,16 @@ function BuilderPage() {
                       onChange={(v) => updateField("floors", v)}
                       options={floors}
                     />
-                    <div className="fg">
-                      <div className="toggle-row">
-                        <label className="toggle">
-                          <input
-                            type="checkbox"
-                            checked={form.revitMode}
-                            onChange={(e) =>
-                              updateField("revitMode", e.target.checked)
-                            }
-                          />
-                          <span className="toggle-slider" />
-                        </label>
-                        <div>
-                          <div className="toggle-label">Revit Model Mode</div>
-                          <div className="toggle-sub">
-                            Enhanced geometry processing for Revit-aligned prompts.
-                          </div>
-                        </div>
-                      </div>
-                    </div>
                   </div>
+                </CollapsibleBlock>
 
-                  {form.revitMode && (
-                    <div className="fg model-reference-field">
-                      <label>Model Reference</label>
-                      <ModelUpload file={referenceImage} onChange={setReferenceImage} />
-                    </div>
-                  )}
-                </div>
-
-                <div className="builder-card">
-                  <div className="builder-card-header">
-                    <div>
-                      <h2>Block B / Massing &amp; Envelope</h2>
-                      <p>
-                        Choose the overall massing, organization, and envelope
-                        strategy that defines the building form.
-                      </p>
-                    </div>
-                  </div>
-
+                <CollapsibleBlock
+                  index="02"
+                  title="Massing & Envelope"
+                  summary={summarizeMassing(form, options)}
+                  expandSignal={expandSignal}
+                  collapseSignal={collapseSignal}
+                >
                   <div className="fg">
                     <label>Building Form</label>
                     <ChipGroup
@@ -986,19 +973,15 @@ function BuilderPage() {
                       onChange={(e) => updateField("massingNotes", e.target.value)}
                     />
                   </div>
-                </div>
+                </CollapsibleBlock>
 
-                <div className="builder-card">
-                  <div className="builder-card-header">
-                    <div>
-                      <h2>Block C / Materiality &amp; Surface</h2>
-                      <p>
-                        Define the primary façade palette and accent surfaces for
-                        the building envelope.
-                      </p>
-                    </div>
-                  </div>
-
+                <CollapsibleBlock
+                  index="03"
+                  title="Materiality & Surface"
+                  summary={summarizeMateriality(form)}
+                  expandSignal={expandSignal}
+                  collapseSignal={collapseSignal}
+                >
                   <div className="fg">
                     <label>Facade Materials</label>
                     <div className="hint">
@@ -1013,19 +996,15 @@ function BuilderPage() {
                       materialOptions={facadeMaterialOptions}
                     />
                   </div>
-                </div>
+                </CollapsibleBlock>
 
-                <div className="builder-card">
-                  <div className="builder-card-header">
-                    <div>
-                      <h2>Block D / Façade Systems</h2>
-                      <p>
-                        Choose visible façade systems and tune vertical shading and
-                        slab expression.
-                      </p>
-                    </div>
-                  </div>
-
+                <CollapsibleBlock
+                  index="04"
+                  title="Façade Systems"
+                  summary={summarizeFacadeSystems(form, options)}
+                  expandSignal={expandSignal}
+                  collapseSignal={collapseSignal}
+                >
                   <div className="fg">
                     <label>Select Facade Elements</label>
                     <div className="hint">
@@ -1085,19 +1064,15 @@ function BuilderPage() {
                       />
                     </div>
                   )}
-                </div>
+                </CollapsibleBlock>
 
-                <div className="builder-card">
-                  <div className="builder-card-header">
-                    <div>
-                      <h2>Block E / Glazing &amp; Openings</h2>
-                      <p>
-                        Define window systems and glazing tint to shape facade
-                        transparency and light quality.
-                      </p>
-                    </div>
-                  </div>
-
+                <CollapsibleBlock
+                  index="05"
+                  title="Glazing & Openings"
+                  summary={summarizeGlazing(form, options)}
+                  expandSignal={expandSignal}
+                  collapseSignal={collapseSignal}
+                >
                   <div className="two-col">
                     <SelectField
                       label="Window Type"
@@ -1112,19 +1087,15 @@ function BuilderPage() {
                       options={glazingTints}
                     />
                   </div>
-                </div>
+                </CollapsibleBlock>
 
-                <div className="builder-card">
-                  <div className="builder-card-header">
-                    <div>
-                      <h2>Block F / Roof Form</h2>
-                      <p>
-                        Choose a roof typology that supports the massing and site
-                        strategy.
-                      </p>
-                    </div>
-                  </div>
-
+                <CollapsibleBlock
+                  index="06"
+                  title="Roof Form"
+                  summary={summarizeRoof(form, options)}
+                  expandSignal={expandSignal}
+                  collapseSignal={collapseSignal}
+                >
                   <div className="fg">
                     <ChipGroup
                       options={roofStyles}
@@ -1132,19 +1103,15 @@ function BuilderPage() {
                       onToggle={(v) => toggleChip("roofStyle", v)}
                     />
                   </div>
-                </div>
+                </CollapsibleBlock>
 
-                <div className="builder-card">
-                  <div className="builder-card-header">
-                    <div>
-                      <h2>Block G / Atmosphere &amp; Optics</h2>
-                      <p>
-                        Set the lighting mood, landscape context, and camera angle
-                        to define the final image atmosphere.
-                      </p>
-                    </div>
-                  </div>
-
+                <CollapsibleBlock
+                  index="07"
+                  title="Atmosphere & Optics"
+                  summary={summarizeAtmosphere(form, options)}
+                  expandSignal={expandSignal}
+                  collapseSignal={collapseSignal}
+                >
                   <div className="fg">
                     <label>Lighting Mood</label>
                     <ChipGroup
@@ -1167,40 +1134,20 @@ function BuilderPage() {
                       options={cameraAngles}
                     />
                   </div>
-                </div>
+                </CollapsibleBlock>
               </div>
             )}
 
             {/* ═══════════════ INTERIOR FORM BLOCKS ═══════════════ */}
             {isInterior && (
-              <div className="mode-section-fade">
-                <div className="builder-card">
-                  <div className="builder-card-header">
-                    <div>
-                      <h2>Block I-A / Room &amp; Style</h2>
-                      <p>
-                        Select the room type and define the interior design
-                        direction for this visualization.
-                      </p>
-                    </div>
-                  </div>
-
-                  {form.revitMode && (
-                    <div className="interior-model-lock-notice">
-                      <strong>⚠ Revit / Model Lock Active</strong>
-                      Upload your Revit or SketchUp model screenshot below.
-                      The geometry lock instruction will be embedded — the AI will preserve
-                      all room proportions, openings, and structural elements exactly as modelled.
-                    </div>
-                  )}
-
-                  {form.revitMode && (
-                    <div className="fg model-reference-field">
-                      <label>Model Reference</label>
-                      <ModelUpload file={referenceImage} onChange={setReferenceImage} />
-                    </div>
-                  )}
-
+              <div className="mode-section-fade design-intent-blocks">
+                <CollapsibleBlock
+                  index="01"
+                  title="Room & Style"
+                  summary={summarizeRoomStyle(form, options)}
+                  expandSignal={expandSignal}
+                  collapseSignal={collapseSignal}
+                >
                   <div className="two-col">
                     <SelectField
                       label="Room Type"
@@ -1208,26 +1155,6 @@ function BuilderPage() {
                       onChange={(v) => updateField("roomType", v)}
                       options={roomTypes}
                     />
-                    <div className="fg">
-                      <div className="toggle-row">
-                        <label className="toggle">
-                          <input
-                            type="checkbox"
-                            checked={form.revitMode}
-                            onChange={(e) =>
-                              updateField("revitMode", e.target.checked)
-                            }
-                          />
-                          <span className="toggle-slider" />
-                        </label>
-                        <div>
-                          <div className="toggle-label">Model Lock Mode</div>
-                          <div className="toggle-sub">
-                            Geometry locked to uploaded Revit / SketchUp model.
-                          </div>
-                        </div>
-                      </div>
-                    </div>
                   </div>
 
                   <div className="fg">
@@ -1238,19 +1165,15 @@ function BuilderPage() {
                       onToggle={(v) => toggleChip("interiorStyle", v)}
                     />
                   </div>
-                </div>
+                </CollapsibleBlock>
 
-                <div className="builder-card">
-                  <div className="builder-card-header">
-                    <div>
-                      <h2>Block I-B / Materials &amp; Furniture</h2>
-                      <p>
-                        Specify interior surfaces and furniture layout to define
-                        the material character and spatial composition.
-                      </p>
-                    </div>
-                  </div>
-
+                <CollapsibleBlock
+                  index="02"
+                  title="Materials & Furniture"
+                  summary={summarizeInteriorMaterials(form, options)}
+                  expandSignal={expandSignal}
+                  collapseSignal={collapseSignal}
+                >
                   <div className="fg">
                     <label>Interior Wall Materials</label>
                     <div className="hint">
@@ -1283,19 +1206,15 @@ function BuilderPage() {
                       options={furnitureLayouts}
                     />
                   </div>
-                </div>
+                </CollapsibleBlock>
 
-                <div className="builder-card">
-                  <div className="builder-card-header">
-                    <div>
-                      <h2>Block I-C / Ceiling &amp; Lighting</h2>
-                      <p>
-                        Configure the ceiling typology, lighting character, and colour
-                        temperature to set the mood of the space.
-                      </p>
-                    </div>
-                  </div>
-
+                <CollapsibleBlock
+                  index="03"
+                  title="Ceiling & Lighting"
+                  summary={summarizeCeilingLighting(form, options)}
+                  expandSignal={expandSignal}
+                  collapseSignal={collapseSignal}
+                >
                   <div className="two-col">
                     <SelectField
                       label="Ceiling Type"
@@ -1318,19 +1237,15 @@ function BuilderPage() {
                       onToggle={(v) => toggleChip("colorTemp", v)}
                     />
                   </div>
-                </div>
+                </CollapsibleBlock>
 
-                <div className="builder-card">
-                  <div className="builder-card-header">
-                    <div>
-                      <h2>Block I-D / Camera &amp; Atmosphere</h2>
-                      <p>
-                        Set the time of day, camera composition, and exterior
-                        view through the windows.
-                      </p>
-                    </div>
-                  </div>
-
+                <CollapsibleBlock
+                  index="04"
+                  title="Camera & Atmosphere"
+                  summary={summarizeCameraAtmosphere(form, options)}
+                  expandSignal={expandSignal}
+                  collapseSignal={collapseSignal}
+                >
                   <div className="fg">
                     <label>Time of Day</label>
                     <ChipGroup
@@ -1353,45 +1268,18 @@ function BuilderPage() {
                       options={windowViews}
                     />
                   </div>
-                </div>
+                </CollapsibleBlock>
               </div>
             )}
 
-            {/* ── SHARED: AI Tool + Design Intent ── */}
-            <div className="builder-card">
-              <div className="builder-card-header">
-                <div>
-                  <h2>Block H / Output &amp; AI Target</h2>
-                  <p>
-                    Choose the output style and target AI tool for the final
-                    prompt format.
-                  </p>
-                </div>
-              </div>
-
-              <div className="tools">
-                {AI_TOOLS.map((t) => (
-                  <ToolCard
-                    key={t.id}
-                    tool={t}
-                    active={form.aiTool === t.id}
-                    onClick={() => updateField("aiTool", t.id)}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="builder-card">
-              <div className="builder-card-header">
-                <div>
-                  <h2>Design Intent &amp; Notes</h2>
-                  <p>
-                    Add optional narrative, client requirements, or constraints
-                    to sharpen the prompt toward your design goals.
-                  </p>
-                </div>
-              </div>
-
+            {/* ── SHARED: Design Intent Notes ── */}
+            <CollapsibleBlock
+              index={isInterior ? "05" : "08"}
+              title="Design Intent & Notes"
+              summary={summarizeNotes(form)}
+              expandSignal={expandSignal}
+              collapseSignal={collapseSignal}
+            >
               <div className="fg">
                 <textarea
                   placeholder={isInterior
@@ -1403,158 +1291,85 @@ function BuilderPage() {
                   rows={4}
                 />
               </div>
-            </div>
-
-            <button
-              className={`gen-btn${isLocked ? " locked" : ""}`}
-              onClick={isLocked ? () => setShowModal(true) : handleGenerate}
-            >
-              {isLocked
-                ? "🔒 Upgrade to Generate More"
-                : "✦ Generate Precise Prompt"}
-            </button>
+            </CollapsibleBlock>
           </section>
 
-          <aside className="builder-sidebar">
-            <div className="builder-card builder-output-card" ref={outputPanelRef}>
-              <div className="builder-card-header">
-                <div>
-                  <h2>Console / Output</h2>
-                  <p>
-                    Review the generated prompt and copy it for your AI tool.
-                  </p>
-                </div>
-              </div>
-
-              <div className="fg project-name-field">
-                <label>Project Name (optional)</label>
-                <div className="project-name-row">
-                  <input
-                    type="text"
-                    placeholder="e.g. Villa A — groups all renders for this building on the Projects page"
-                    value={projectName}
-                    onChange={(e) => setProjectName(e.target.value)}
-                    onBlur={persistProjectName}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        persistProjectName();
-                        e.currentTarget.blur();
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className={`project-name-save-btn${projectNameSaved === "attached" ? " saved" : ""}${projectNameSaved === "pending" ? " pending" : ""}${projectNameSaved === "failed" ? " failed" : ""}`}
-                    onClick={persistProjectName}
-                    title={
-                      projectNameSaved === "pending"
-                        ? "Nothing generated yet in this session — will attach to your next Generate"
-                        : projectNameSaved === "failed"
-                          ? "Couldn't save — check you're signed in, or try again"
-                          : undefined
-                    }
-                  >
-                    {projectNameSaved === "attached"
-                      ? "Saved ✓"
-                      : projectNameSaved === "pending"
-                        ? "Will apply next"
-                        : projectNameSaved === "failed"
-                          ? "Save failed"
-                          : "Save"}
-                  </button>
-                </div>
-              </div>
-
-              <OutputPanel
-                output={output}
-                copied={copied}
-                isLocked={isLocked}
-                used={used}
-                isPro={isPro}
-                freeLimit={FREE_LIMIT}
-                onCopy={handleCopy}
-                onUpgrade={() => {
-                  if (!userEmail) {
-                    setShowAuth(true);
-                    return;
-                  }
-                  setShowModal(true);
-                }}
-                renderedImage={renderedImage}
-                rendering={rendering}
-                renderError={renderError}
-                onRenderPreview={handleRenderPreview}
-                refining={refining}
-                refineError={refineError}
-                onRefine={handleRefine}
-                variants={variants}
-                activeVariantId={activeVariantId}
-                onSelectVariant={handleSelectVariant}
-              />
-            </div>
-
-            <div className="builder-status-card">
-              <h3>Membership Status</h3>
-              <p>
-                {isPro
-                  ? `Pro account active — unlimited ${isInterior ? 'interior' : 'exterior'} rendering prompts and access to the full command set.`
-                  : `Free account — limited to 3 prompts. Upgrade for unlimited prompt generation and premium ${isInterior ? 'interior' : 'facade'} controls.`}
-              </p>
-              <div className="status-row">
-                <span>Prompt allowance</span>
-                <strong>
-                  {isPro ? "Unlimited" : `${remaining} / ${FREE_LIMIT}`}
-                </strong>
-              </div>
-              <div className="status-row" style={{ marginTop: 10 }}>
-                <span>Active mode</span>
-                <strong style={{ textTransform: 'capitalize' }}>
-                  {form.builderMode} render
-                </strong>
-              </div>
-              {form.revitMode && (
-                <div className="builder-warning">
-                  {referenceImage
-                    ? `✓ MODEL REFERENCE ATTACHED: "${referenceImage.name}" will guide Render Preview for ${isInterior ? 'spatial geometry' : 'structural'} lock.`
-                    : `⚠ ${isInterior ? 'MODEL LOCK ACTIVE' : 'REVIT MODE ACTIVE'}: Upload your model screenshot above for optimal ${isInterior ? 'spatial geometry' : 'structural'} alignment.`}
-                </div>
-              )}
-            </div>
+          <aside className="builder-sidebar" ref={outputPanelRef}>
+            <OutputPanel
+              output={output}
+              copied={copied}
+              isLocked={isLocked}
+              used={used}
+              isPro={isPro}
+              freeLimit={FREE_LIMIT}
+              onCopy={handleCopy}
+              onUpgrade={() => {
+                if (!userEmail) {
+                  setShowAuth(true);
+                  return;
+                }
+                router.push("/pricing");
+              }}
+              renderedImage={renderedImage}
+              rendering={rendering}
+              renderError={renderError}
+              failureType={failureType}
+              renderStage={renderStage}
+              renderElapsed={renderElapsed}
+              onCancelRender={handleCancelRender}
+              onRetryRender={handleRenderPreview}
+              onRenderPreview={handleRenderPreview}
+              referenceImageName={form.revitMode ? referenceImage?.name ?? null : null}
+              projectRefsUsed={projectRefsUsed}
+              historyEntryId={historyEntryIdRef.current}
+              refining={refining}
+              refineError={refineError}
+              onRefine={handleRefine}
+              variants={variants}
+              activeVariantId={activeVariantId}
+              onSelectVariant={handleSelectVariant}
+              aiTools={AI_TOOLS}
+              aiTool={form.aiTool}
+              onAiToolChange={(id) => updateField("aiTool", id as AiTool)}
+              onGenerate={isLocked ? () => router.push("/pricing") : handleGenerate}
+              onSave={persistProjectName}
+              saveLabel={
+                projectNameSaved === "attached"
+                  ? "Saved"
+                  : projectNameSaved === "pending"
+                    ? "Will apply next"
+                    : projectNameSaved === "failed"
+                      ? "Save failed"
+                      : "Save"
+              }
+            />
           </aside>
         </main>
       </div>
 
       <div className="mobile-generate-fab">
+        <div className="mobile-generate-info">
+          <span className="mobile-generate-chars">
+            {output ? `${output.length} chars ready` : "Not generated yet"}
+          </span>
+          <span className="mobile-generate-project">
+            {projectName || "Untitled project"}
+          </span>
+        </div>
         <button
           className={`gen-btn${isLocked ? " locked" : ""}`}
           onClick={handleGenerateAndReveal}
         >
-          {isLocked ? "🔒 Upgrade" : "✦ Generate Prompt"}
+          {isLocked ? "Upgrade" : "Generate prompt"}
         </button>
       </div>
-
-      <PricingModal
-        open={showModal}
-        email={payEmail}
-        userEmail={userEmail}
-        onEmailChange={setPayEmail}
-        onPayment={handlePayment}
-        onClose={() => setShowModal(false)}
-      />
 
       <AuthModal
         open={showAuth}
         onClose={() => setShowAuth(false)}
         onSignedIn={(email) => {
           setUserEmail(email);
-          setPayEmail(email);
         }}
-      />
-
-      <HistoryModal
-        open={showHistory}
-        onClose={() => setShowHistory(false)}
-        onRestore={handleRestoreFromHistory}
       />
     </>
   );

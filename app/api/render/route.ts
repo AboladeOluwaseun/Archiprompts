@@ -82,7 +82,10 @@ export async function POST(req: NextRequest) {
 
   const access = await resolveRenderAccess(token);
   if (!access.ok) {
-    return NextResponse.json({ error: access.reason }, { status: 403 });
+    return NextResponse.json(
+      { error: access.reason, failureType: "plan" },
+      { status: 403 },
+    );
   }
 
   let imagePrompt = sanitizePromptForImageGen(rawPrompt).slice(0, 4000);
@@ -138,6 +141,9 @@ export async function POST(req: NextRequest) {
       "described above, with matching style.";
   }
 
+  const usedReference = !!referenceImage;
+  const deadline = AbortSignal.timeout(60_000);
+
   try {
     let response: Response;
 
@@ -165,6 +171,7 @@ export async function POST(req: NextRequest) {
         method: "POST",
         headers: { Authorization: `Bearer ${openAiKey}` },
         body: openAiForm,
+        signal: deadline,
       });
     } else {
       response = await fetch("https://api.openai.com/v1/images/generations", {
@@ -180,6 +187,7 @@ export async function POST(req: NextRequest) {
           quality: "medium",
           n: 1,
         }),
+        signal: deadline,
       });
     }
 
@@ -188,14 +196,28 @@ export async function POST(req: NextRequest) {
       console.warn("[Render] OpenAI image request failed", response.status, errText);
 
       let message = "Image rendering failed. Please try again.";
+      let parsedError: { code?: string; message?: string } | undefined;
       try {
         const parsed = JSON.parse(errText);
-        if (parsed?.error?.message) message = parsed.error.message;
+        parsedError = parsed?.error;
+        if (parsedError?.message) message = parsedError.message;
       } catch {
         // ignore parse failures, use default message
       }
 
-      return NextResponse.json({ error: message }, { status: 502 });
+      // OpenAI flags an unreadable/invalid input image with these codes on
+      // the images/edits path — a real, distinguishable failure mode from
+      // a generic model error, worth its own recovery copy.
+      const isReferenceError =
+        usedReference &&
+        (parsedError?.code === "invalid_image" ||
+          parsedError?.code === "invalid_image_format" ||
+          /image/i.test(parsedError?.message || ""));
+
+      return NextResponse.json(
+        { error: message, failureType: isReferenceError ? "reference" : "generic" },
+        { status: 502 },
+      );
     }
 
     const payload = await response.json();
@@ -296,11 +318,21 @@ export async function POST(req: NextRequest) {
       imageUrl,
       referenceImageUrl,
       variantId,
+      projectRefsUsed: projectContextImages.length,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      return NextResponse.json(
+        {
+          error: "gpt-image-2 did not answer within 60 seconds.",
+          failureType: "timeout",
+        },
+        { status: 504 },
+      );
+    }
     console.error("[Render] Unexpected error", error);
     return NextResponse.json(
-      { error: "Unexpected error while rendering preview." },
+      { error: "Unexpected error while rendering preview.", failureType: "generic" },
       { status: 500 },
     );
   }

@@ -70,33 +70,47 @@ export default function ProjectsPage() {
     load();
   }, []);
 
+  const isEmpty = !loading && signedIn && groups.length === 0;
+
   return (
     <div className="projects-page">
+      <Link href="/builder" className="projects-back">
+        ← Back to builder
+      </Link>
+
       <div className="projects-header">
-        <Link href="/builder" className="projects-back">
-          ← Back to Builder
+        <div>
+          <div className="projects-eyebrow">PROJECTS</div>
+          <h1>Renders grouped by building</h1>
+        </div>
+        <Link href="/builder" className="projects-new-btn">
+          New render
         </Link>
-        <h1>
-          Your <span className="projects-title-accent">Projects</span>
-        </h1>
-        <p>
-          Every render you've generated, grouped by project — so views of the
-          same building stay together without digging through Archive.
-        </p>
       </div>
 
-      {loading && <div className="projects-empty">Loading…</div>}
+      {loading && <div className="projects-empty-body">Loading…</div>}
 
       {!loading && signedIn === false && (
-        <div className="projects-empty">
+        <div className="projects-empty-body">
           Sign in from the builder to see your projects.
         </div>
       )}
 
-      {!loading && signedIn && groups.length === 0 && (
+      {isEmpty && (
         <div className="projects-empty">
-          No renders yet — generate one in the builder and give it a project
-          name to see it here.
+          <div className="projects-empty-box" />
+          <div className="projects-empty-body">
+            <h2>No projects yet.</h2>
+            <p>
+              A project is created the first time you name one in the
+              builder. Renders that share a project also share style
+              references, which is what keeps four views looking like one
+              building.
+            </p>
+            <Link href="/builder" className="project-new-render">
+              Build your first prompt
+            </Link>
+          </div>
         </div>
       )}
 
@@ -105,9 +119,8 @@ export default function ProjectsPage() {
           {groups.map((group) => {
             const key = group.name ?? "__ungrouped__";
             const isOpen = expanded === key;
-            const thumbs = group.entries
-              .filter((e) => e.rendered_image_url)
-              .slice(0, 4);
+            const renderedCount = group.entries.filter((e) => e.rendered_image_url).length;
+            const styleRefsActive = renderedCount >= 2;
 
             return (
               <div key={key} className={`project-card${isOpen ? " open" : ""}`}>
@@ -116,69 +129,67 @@ export default function ProjectsPage() {
                   className="project-card-header"
                   onClick={() => setExpanded(isOpen ? null : key)}
                 >
-                  <div className="project-card-thumbs">
-                    {thumbs.length > 0 ? (
-                      thumbs.map((t) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img key={t.id} src={t.rendered_image_url!} alt="" />
-                      ))
-                    ) : (
-                      <div className="project-card-thumb-placeholder">No renders yet</div>
-                    )}
-                  </div>
                   <div className="project-card-meta">
-                    <div className="project-card-name">
-                      {group.name ?? "Ungrouped"}
+                    <div className="project-card-name-row">
+                      <div className="project-card-name">
+                        {group.name ?? "Ungrouped"}
+                      </div>
                     </div>
                     <div className="project-card-count">
-                      {group.entries.length} prompt{group.entries.length === 1 ? "" : "s"}
+                      {group.entries.length} prompt{group.entries.length === 1 ? "" : "s"} ·{" "}
+                      {renderedCount} render{renderedCount === 1 ? "" : "s"}
                     </div>
                   </div>
-                  <span className="project-card-chevron">{isOpen ? "▲" : "▼"}</span>
+                  {styleRefsActive && (
+                    <span className="style-refs-badge">STYLE REFS ACTIVE</span>
+                  )}
+                  <span className="project-card-chevron">{isOpen ? "–" : "+"}</span>
                 </button>
 
                 {isOpen && (
                   <div className="project-card-body">
-                    {group.name && (
-                      <Link
-                        href={`/builder?newForProject=${encodeURIComponent(group.name)}`}
-                        className="project-new-render"
-                      >
-                        + New Render for {group.name}
-                      </Link>
+                    {renderedCount === 0 && (
+                      <div className="project-no-views">
+                        <strong>Nothing rendered here yet.</strong>
+                        <span>
+                          The first render in a project has no style
+                          references to inherit, so it is judged on the
+                          prompt alone. Every render after it borrows the
+                          two most recent images.
+                        </span>
+                      </div>
                     )}
-                    <div className="project-entry-list">
+                    <div className="project-views-grid">
                       {group.entries.map((entry) => (
-                        <div key={entry.id} className="project-entry">
+                        <Link
+                          key={entry.id}
+                          href={`/builder?restore=${entry.id}`}
+                          className="project-view-tile"
+                          title={entry.summary}
+                        >
                           {entry.rendered_image_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              className="project-entry-thumb"
-                              src={entry.rendered_image_url}
-                              alt=""
-                            />
+                            <img src={entry.rendered_image_url} alt="" />
                           ) : (
-                            <div className="project-entry-thumb placeholder" />
+                            <div className="project-view-tile-placeholder" />
                           )}
-                          <div className="project-entry-main">
-                            <div className="project-entry-summary">{entry.summary}</div>
-                            <div className="project-entry-date">
-                              {new Date(entry.created_at).toLocaleDateString(undefined, {
-                                month: "short",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </div>
-                          </div>
-                          <Link
-                            href={`/builder?restore=${entry.id}`}
-                            className="btn-sm"
-                          >
-                            Load
-                          </Link>
-                        </div>
+                          <span className="project-view-tile-label">{entry.summary}</span>
+                        </Link>
                       ))}
+                    </div>
+                    <div className="project-new-render-row">
+                      {group.name && (
+                        <Link
+                          href={`/builder?newForProject=${encodeURIComponent(group.name)}`}
+                          className="project-new-render"
+                        >
+                          Add a view to this project
+                        </Link>
+                      )}
+                      <span className="project-new-render-hint">
+                        New renders here inherit the two most recent images
+                        as style references.
+                      </span>
                     </div>
                   </div>
                 )}

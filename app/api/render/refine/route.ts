@@ -83,7 +83,10 @@ export async function POST(req: NextRequest) {
 
   const access = await resolveRenderAccess(token);
   if (!access.ok) {
-    return NextResponse.json({ error: access.reason }, { status: 403 });
+    return NextResponse.json(
+      { error: access.reason, failureType: "plan" },
+      { status: 403 },
+    );
   }
 
   const refinementPrompt = buildRefinementPrompt(instructionsRaw.trim()).slice(0, 4000);

@@ -1,6 +1,6 @@
 import { getSupabaseBrowser } from "./supabase";
-import { PromptFormData, DEFAULT_FORM_DATA, AiTool, BuilderMode, SelectOption } from "./types";
-import { CAMERA_ANGLES, INTERIOR_CAMERA_ANGLES } from "./formOptions";
+import { PromptFormData, DEFAULT_FORM_DATA, AiTool, BuilderMode } from "./types";
+import { CAMERA_ANGLES, INTERIOR_CAMERA_ANGLES, shortLabel } from "./formOptions";
 
 /**
  * Prompt History
@@ -23,16 +23,6 @@ export interface HistoryEntry {
   rendered_image_url: string | null;
   reference_image_url: string | null;
   created_at: string;
-}
-
-// Maps a long descriptive field value back to its short dropdown label
-// (e.g. "front elevation view, straight-on..." -> "Front Elevation"), so
-// the Archive summary distinguishes different views of the SAME building
-// instead of showing an identical building-type/style title for each one.
-function shortLabel(value: string, options: SelectOption[]): string {
-  const match = options.find((o) => o.value === value);
-  if (match) return match.label;
-  return value.split(",")[0].trim();
 }
 
 function buildSummary(form: PromptFormData): string {

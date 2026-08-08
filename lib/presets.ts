@@ -16,6 +16,7 @@ export interface Preset {
   label: string;
   mode: BuilderMode;
   icon: string;
+  img: string;
   description: string;
   overrides: Partial<PromptFormData>;
 }
@@ -26,6 +27,7 @@ export const PRESETS: Preset[] = [
     label: "Modern Glass Tower — Dusk",
     mode: "exterior",
     icon: "🏙️",
+    img: "/mockups/office-facade.png",
     description: "Curtain-wall tower, blue hour, 3/4 street view",
     overrides: {
       buildingType: "commercial office building",
@@ -59,6 +61,7 @@ export const PRESETS: Preset[] = [
     label: "Brutalist Concrete — Overcast",
     mode: "exterior",
     icon: "🏛️",
+    img: "/mockups/brutalist-exterior.png",
     description: "Raw concrete, deep expressed slabs, worm's-eye drama",
     overrides: {
       buildingType: "institutional building",
@@ -93,6 +96,7 @@ export const PRESETS: Preset[] = [
     label: "Scandinavian Living Room — Daylight",
     mode: "interior",
     icon: "🛋️",
+    img: "/mockups/scandi-living.png",
     description: "Minimal, airy, bright natural light",
     overrides: {
       roomType: "luxury living room",
@@ -119,6 +123,7 @@ export const PRESETS: Preset[] = [
     label: "Open-Plan Kitchen — Golden Hour",
     mode: "interior",
     icon: "🍽️",
+    img: "/mockups/open-kitchen-dining.png",
     description: "Warm contemporary, statement pendant, raking light",
     overrides: {
       roomType: "open-plan kitchen and dining area",

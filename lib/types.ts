@@ -41,6 +41,7 @@ export interface PromptFormData {
   // ── Shared ──────────────────────────────────────────────────
   builderMode: BuilderMode;
   revitMode: boolean;
+  referenceStrength: 'strict' | 'balanced' | 'loose';
   aiTool: AiTool;
   extraNotes: string;
 
@@ -106,6 +107,7 @@ export const DEFAULT_FORM_DATA: PromptFormData = {
   // Shared
   builderMode: 'exterior',
   revitMode: true,
+  referenceStrength: 'strict',
   aiTool: 'chatgpt',
   extraNotes: '',
 
