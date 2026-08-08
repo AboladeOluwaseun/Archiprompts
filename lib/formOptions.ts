@@ -53,6 +53,7 @@ export const BUILDING_TYPES: SelectOption[] = [
   { label: "— Select —", value: "" },
   { label: "Residential Bungalow", value: "residential bungalow" },
   { label: "Two-Storey Duplex", value: "two-storey duplex" },
+  { label: "Terrace / Row House", value: "terrace row house, one of a matching attached row" },
   { label: "Luxury Villa", value: "luxury villa" },
   { label: "Apartment Block", value: "apartment block" },
   { label: "Commercial Office Building", value: "commercial office building" },
@@ -60,6 +61,12 @@ export const BUILDING_TYPES: SelectOption[] = [
   { label: "Retail Building", value: "retail building" },
   { label: "Hospitality / Hotel", value: "hospitality / hotel" },
   { label: "Institutional Building", value: "institutional building" },
+  { label: "Church / Chapel", value: "church, Christian place of worship" },
+  { label: "Mosque", value: "mosque, Islamic place of worship" },
+  { label: "School / Educational Building", value: "school building, educational institution" },
+  { label: "Healthcare Facility / Clinic", value: "healthcare facility, hospital or clinic building" },
+  { label: "Industrial / Warehouse", value: "industrial warehouse and logistics building" },
+  { label: "Event Centre / Banquet Hall", value: "event centre, banquet and function hall" },
 ];
 
 export const ARCH_STYLES: SelectOption[] = [
@@ -123,6 +130,11 @@ export const BUILDING_FORMS: ChipOption[] = [
   {
     label: "Organic / Freeform",
     value: "irregular organic curved form, flowing non-orthogonal massing",
+  },
+  {
+    label: "Single-Volume Hall",
+    value:
+      "single large-span column-free volume, one continuous roof over the whole footprint, tall proportions relative to footprint — not broken into separate wings or storeys",
   },
 ];
 
@@ -419,6 +431,26 @@ export const ROOF_STYLES: ChipOption[] = [
   {
     label: "Mono-Pitch",
     value: "mono-pitch roof sloping in one direction, dark steel finish",
+  },
+  {
+    label: "Domed Roof",
+    value:
+      "central dome roof, smooth curved profile, clearly a dome silhouette against the sky — not a flat or pitched roof",
+  },
+  {
+    label: "Spire / Steeple",
+    value:
+      "tall pointed spire or steeple rising from the roofline, clearly the tallest element of the building, slender and vertical",
+  },
+  {
+    label: "Minaret Tower",
+    value:
+      "slender minaret tower adjacent to the main roof, distinct from the main massing, topped with a small dome or crown",
+  },
+  {
+    label: "Large-Span Portal Frame",
+    value:
+      "large-span portal frame roof (warehouse/hall type), long uninterrupted ridge line, corrugated metal cladding, no internal columns visible from outside",
   },
 ];
 

@@ -5,28 +5,29 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabase";
 import { chargeWithPaystack, grantProAccess } from "@/lib/paystack";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const PLAN_DETAILS = {
   monthly: {
     label: "MONTHLY",
-    price: "₦100",
-    amount: 100,
+    price: "$8",
+    amount: 8,
     per: "for 30 days · renewed manually",
     note: "This is not a subscription. Access stops after 30 days unless you pay again — nothing is charged automatically.",
   },
-  lifetime: {
-    label: "LIFETIME",
-    price: "₦25,000",
-    amount: 25000,
-    per: "once · permanent access",
-    note: "One payment. No renewal, no subscription to cancel, and no price change if the plan price moves later.",
+  yearly: {
+    label: "YEARLY",
+    price: "$100",
+    amount: 100,
+    per: "for 365 days · renewed manually",
+    note: "This is not a subscription. Access stops after 365 days unless you pay again — nothing is charged automatically.",
   },
 };
 
 function UpgradePageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const planKey = searchParams.get("plan") === "lifetime" ? "lifetime" : "monthly";
+  const planKey = searchParams.get("plan") === "yearly" ? "yearly" : "monthly";
   const plan = PLAN_DETAILS[planKey];
 
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -69,8 +70,10 @@ function UpgradePageInner() {
 
   if (paid) {
     return (
-      <div className="theme-paper">
       <div className="upgrade-page">
+        <div className="page-toolbar end">
+          <ThemeToggle />
+        </div>
         <div className="lineage-eyebrow accent">PAID · STEP 2 OF 2</div>
         <h1 className="lineage-title">Render Preview is on.</h1>
         <p className="lineage-sub">
@@ -99,13 +102,17 @@ function UpgradePageInner() {
           Back to the builder
         </Link>
       </div>
-      </div>
     );
   }
 
   return (
-    <div className="theme-paper">
     <div className="upgrade-page">
+      <div className="page-toolbar">
+        <Link href="/pricing" className="projects-back">
+          ← Back to plans
+        </Link>
+        <ThemeToggle />
+      </div>
       <div className="lineage-eyebrow">CONFIRM · STEP 1 OF 2</div>
       <h1 className="lineage-title">Check this before you pay.</h1>
 
@@ -121,7 +128,7 @@ function UpgradePageInner() {
         <div className="upgrade-confirm-meta">
           <div>
             <span>Charged in</span>
-            <span>NGN, by Paystack</span>
+            <span>USD, by Paystack</span>
           </div>
           <div>
             <span>Renders included</span>
@@ -147,7 +154,6 @@ function UpgradePageInner() {
       <div className="upgrade-footnote">
         You&apos;ll land on Paystack&apos;s page next. Card details never touch our servers.
       </div>
-    </div>
     </div>
   );
 }

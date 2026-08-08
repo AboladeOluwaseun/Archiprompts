@@ -64,7 +64,15 @@
    just inherits light values, since they all reference these same
    custom properties rather than hardcoded colours.
    ─────────────────────────────────────────────────────────────── */
-.theme-paper {
+/* ─── LIGHT THEME (global, user-toggled) ─────────────────────────
+   Originally the spec split themes per screen (Studio dark for the
+   builder/render screens, Drafting paper for marketing) with no user
+   choice — see the design handoff README. That's now a single
+   app-wide toggle instead (ThemeToggle component sets this attribute
+   on <html> and persists it), so every screen shares one theme at a
+   time rather than each screen forcing its own.
+   ─────────────────────────────────────────────────────────────── */
+html[data-theme="light"] {
   --gold: oklch(0.52 0.14 48);
   --gold-light: oklch(0.44 0.14 48);
   --dark: #f7f2e7;
@@ -77,13 +85,8 @@
   --text-dim: color-mix(in oklab, var(--text) 40%, transparent);
   --border: color-mix(in oklab, var(--gold) 30%, transparent);
   --border-dim: color-mix(in oklab, var(--text) 14%, transparent);
-
-  background: var(--dark);
-  color: var(--text);
-  width: 100%;
-  min-height: 100vh;
 }
-.theme-paper ::selection {
+html[data-theme="light"] ::selection {
   background: color-mix(in oklab, var(--gold) 30%, transparent);
 }
 
@@ -191,7 +194,7 @@ body::after {
   font-size: 12px;
   font-weight: 700;
   padding: 8px 18px;
-  background: var(--gold);
+  background: var(--text);
   color: var(--dark);
   border: none;
   border-radius: var(--r);
@@ -199,7 +202,7 @@ body::after {
   transition: all 0.2s;
 }
 .btn-sm:hover {
-  background: var(--gold-light);
+  opacity: 0.88;
   transform: translateY(-1px);
 }
 
@@ -1285,7 +1288,7 @@ textarea::placeholder {
 .gen-btn {
   width: 100%;
   padding: 14px;
-  background: var(--gold);
+  background: var(--text);
   color: var(--dark);
   font-family: "Archivo", sans-serif;
   font-size: 13px;
@@ -1317,9 +1320,9 @@ textarea::placeholder {
   transform: translateX(100%);
 }
 .gen-btn:hover {
-  background: var(--gold-light);
+  opacity: 0.88;
   transform: translateY(-1px);
-  box-shadow: 0 8px 24px color-mix(in oklab, var(--gold) 20%, transparent);
+  box-shadow: 0 8px 24px color-mix(in oklab, var(--text) 20%, transparent);
 }
 .gen-btn.locked {
   background: var(--dark-4);
@@ -1847,9 +1850,9 @@ textarea::placeholder {
 .refine-btn {
   width: 100%;
   padding: 11px;
-  background: transparent;
-  border: 1px solid var(--gold);
-  color: var(--gold);
+  background: var(--text);
+  border: none;
+  color: var(--dark);
   font-family: "Archivo", sans-serif;
   font-size: 12px;
   font-weight: 700;
@@ -1860,7 +1863,7 @@ textarea::placeholder {
   transition: all 0.2s;
 }
 .refine-btn:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--gold) 8%, transparent);
+  opacity: 0.88;
 }
 .refine-btn:disabled {
   opacity: 0.4;
@@ -2074,7 +2077,7 @@ textarea::placeholder {
 .pay-btn {
   width: 100%;
   padding: 10px;
-  background: var(--gold);
+  background: var(--text);
   color: var(--dark);
   font-family: "Archivo", sans-serif;
   font-size: 11px;
@@ -2087,7 +2090,7 @@ textarea::placeholder {
   transition: all 0.2s;
 }
 .pay-btn:hover {
-  background: var(--gold-light);
+  opacity: 0.88;
 }
 .pay-btn.out {
   background: transparent;
@@ -2119,7 +2122,44 @@ textarea::placeholder {
   font-size: 11px;
   color: var(--text-muted);
   text-decoration: none;
+}
+
+/* ─── PAGE TOOLBAR (back link + theme toggle) ────────────────── */
+.page-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 16px;
+}
+.page-toolbar.end {
+  justify-content: flex-end;
+}
+
+/* ─── THEME TOGGLE ────────────────────────────────────────────── */
+.theme-toggle {
+  display: inline-flex;
+  border: 1px solid color-mix(in oklab, var(--gold) 16%, transparent);
+}
+.theme-toggle-btn {
+  padding: 5px 11px;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.theme-toggle-btn + .theme-toggle-btn {
+  border-left: 1px solid color-mix(in oklab, var(--gold) 16%, transparent);
+}
+.theme-toggle-btn:hover {
+  color: var(--text);
+}
+.theme-toggle-btn.active {
+  background: var(--text);
+  color: var(--dark);
 }
 .projects-back:hover {
   color: var(--gold);
@@ -2882,6 +2922,10 @@ textarea::placeholder {
   gap: 64px;
   align-items: start;
 }
+.account-toolbar {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
 
 .account-title {
   font-family: "Archivo", sans-serif;
@@ -3241,7 +3285,7 @@ textarea::placeholder {
 }
 
 .mode-tab.active {
-  background: var(--gold);
+  background: var(--text);
   color: var(--dark);
   font-weight: 600;
 }

@@ -44,7 +44,7 @@ export async function resolveRenderAccess(
     return { ok: false, reason: "Upgrade to Pro to render preview images." };
   }
 
-  if (profile.plan === "monthly" && profile.plan_expires_at) {
+  if (profile.plan_expires_at) {
     if (new Date(profile.plan_expires_at) < new Date()) {
       return { ok: false, reason: "Your Pro plan has expired — renew to keep rendering previews." };
     }

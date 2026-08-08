@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabase";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function AccountPage() {
   const router = useRouter();
@@ -44,8 +45,13 @@ export default function AccountPage() {
   if (userEmail) return null;
 
   return (
-    <div className="theme-paper">
     <div className="account-page">
+      <div className="page-toolbar account-toolbar">
+        <Link href="/builder" className="projects-back">
+          ← Back to builder
+        </Link>
+        <ThemeToggle />
+      </div>
       <div className="account-copy">
         <div className="lineage-eyebrow">ACCOUNT</div>
         <h1 className="account-title">
@@ -91,7 +97,6 @@ export default function AccountPage() {
         </Link>
         {error && <div className="render-error">{error}</div>}
       </div>
-    </div>
     </div>
   );
 }

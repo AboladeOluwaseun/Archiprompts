@@ -32,8 +32,8 @@ export function chargeWithPaystack(opts: {
   const handler = PaystackPop.setup({
     key: paystackKey,
     email: opts.email,
-    amount: opts.amount * 100, // convert to kobo
-    currency: "NGN",
+    amount: opts.amount * 100, // convert to cents
+    currency: "USD",
     ref: "AP_" + Date.now() + "_" + Math.random().toString(36).substring(2, 8),
     metadata: {
       plan: opts.plan,
@@ -58,7 +58,9 @@ export async function grantProAccess(plan: string, email: string): Promise<boole
   const planExpiresAt =
     plan === "monthly"
       ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-      : null;
+      : plan === "yearly"
+        ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+        : null;
 
   const { error } = await sb
     .from("profiles")

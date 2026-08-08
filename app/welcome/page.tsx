@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const FAILURES = [
   {
@@ -53,7 +54,6 @@ const STEPS = [
 
 export default function WelcomePage() {
   return (
-    <div className="theme-paper">
       <div className="landing-page">
         <header className="landing-nav">
           <div className="landing-brand">
@@ -62,6 +62,7 @@ export default function WelcomePage() {
           </div>
           <div className="landing-nav-actions">
             <Link href="/pricing">Pricing</Link>
+            <ThemeToggle />
             <Link href="/builder" className="landing-nav-cta">
               Open the builder
             </Link>
@@ -147,6 +148,5 @@ export default function WelcomePage() {
           </Link>
         </footer>
       </div>
-    </div>
   );
 }

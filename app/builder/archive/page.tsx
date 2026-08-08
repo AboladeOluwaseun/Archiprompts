@@ -9,6 +9,7 @@ import {
   deleteHistoryEntry,
   updateHistoryProjectName,
 } from "@/lib/history";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function ArchivePage() {
   const [loading, setLoading] = useState(true);
@@ -64,9 +65,12 @@ export default function ArchivePage() {
 
   return (
     <div className="archive-page">
-      <Link href="/builder" className="projects-back">
-        ← Back to builder
-      </Link>
+      <div className="page-toolbar">
+        <Link href="/builder" className="projects-back">
+          ← Back to builder
+        </Link>
+        <ThemeToggle />
+      </div>
 
       <div className="lineage-eyebrow">ARCHIVE</div>
       <h1 className="lineage-title">Every prompt, restorable</h1>

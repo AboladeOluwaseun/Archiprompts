@@ -16,6 +16,7 @@ import AuthModal from "@/components/AuthModal";
 import ModelUpload from "@/components/ModelUpload";
 import MaterialAssignmentList from "@/components/MaterialAssignmentList";
 import CollapsibleBlock from "@/components/CollapsibleBlock";
+import ThemeToggle from "@/components/ThemeToggle";
 import {
   saveHistoryEntry,
   updateHistoryProjectName,
@@ -199,7 +200,7 @@ function BuilderPage() {
 
       if (profile.plan === "free") {
         setIsPro(false);
-      } else if (profile.plan === "monthly" && profile.plan_expires_at) {
+      } else if (profile.plan_expires_at) {
         const expired = new Date(profile.plan_expires_at) < new Date();
         setIsPro(!expired);
       } else {
@@ -769,6 +770,7 @@ function BuilderPage() {
           <span className="builder-topbar-quota">{quotaLabel}</span>
 
           <div className="builder-topbar-actions">
+            <ThemeToggle />
             <button
               className="btn-sm"
               onClick={() => {

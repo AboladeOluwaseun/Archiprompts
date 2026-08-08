@@ -12,13 +12,30 @@
 import { MaterialAssignment, PromptFormData } from './types';
 
 // Renders a zone→material list as an explicit schedule the AI can follow
-// per-location, instead of a flat list with no spatial meaning.
+// per-location, instead of a flat list with no spatial meaning. Each line
+// repeats "ONLY" and "hard edge" — material bleeding across zone
+// boundaries (one material creeping across the whole facade) is one of
+// the most common diffusion failures, and a single instruction at the
+// top of the section isn't enough to stop it once the model is several
+// zones deep into the list.
 function formatMaterialSchedule(assignments: MaterialAssignment[]): string {
   return assignments
     .filter((a) => a.material)
-    .map((a) => `• ${a.zone}: ${a.material}.`)
+    .map((a) => `• ${a.zone}: ${a.material} — ONLY here, hard crisp edge where it meets the next zone, no gradient or blending.`)
     .join('\n');
 }
+
+// A compact, tool-agnostic "avoid" line. The structured NEGATIVE PROMPT
+// block below only ever applied to Stable Diffusion (the only tool with
+// a real negative-prompt field) — every other tool, including the
+// default gpt-image-2, got no negative signal at all beyond the rules
+// list at the very end of a long prompt. GPT-image-style models do
+// follow inline "avoid X" instructions reasonably well even without a
+// dedicated field, so this costs nothing to include for every tool.
+const EXTERIOR_AVOID =
+  'AVOID: invented floors or extra volumes, glass rendered where solid material was specified, materials bleeding across zone boundaries, cropped or cut-off building edges, cartoon/illustration style, watermarks or text.';
+const INTERIOR_AVOID =
+  'AVOID: extra windows or doors not listed, materials bleeding across wall zones, furniture at the wrong scale for the room, tilted or converging verticals, cartoon/illustration style, watermarks or text.';
 
 // How strictly the reference image should be followed — a gradient on
 // top of the existing on/off revitMode toggle, so "geometry lock" isn't
@@ -157,7 +174,12 @@ function buildExteriorPrompt(data: PromptFormData): string {
   }
 
   // ── Assemble the full prompt (exact 20-step order) ────────────
-  const prompt = `${toolPre}Photorealistic architectural rendering of a ${archStyle} ${floors} ${bt}, ${cameraAngle}, professional architectural photography composition, 35mm lens, correct perspective, no distortion.${revitBlock}
+  // The geometry constraint is stated here AND again in ABSOLUTE RULES
+  // at the end — a sandwich, not a single mention. Both diffusion and
+  // GPT-image-style models weight the start and end of a prompt more
+  // than the middle, so a hard constraint stated only once, 300 words
+  // in, competes poorly against everything around it for attention.
+  const prompt = `${toolPre}Photorealistic architectural rendering of a ${archStyle} ${floors} ${bt}, ${cameraAngle}, professional architectural photography composition, 35mm lens, correct perspective, no distortion. GEOMETRY IS FIXED: exactly ${floors}, ${buildingForm} — do not add floors, volumes, or change the silhouette.${revitBlock}
 
 ARCHITECTURE STYLE:
 ${archStyle} architecture, ${floors}, premium construction quality, correct building scale and proportions.
@@ -180,15 +202,17 @@ LIGHTING:
 ${lightMood}. Physically accurate light simulation, balanced contrast, no overexposure. Realistic light spill and shadow cast by all facade elements.
 
 ENVIRONMENT:
-${landscape}. Clean, well-maintained site. Realistic shadows from trees and building elements.
+${landscape}. Clean, well-maintained site. Realistic shadows from trees and building elements. Include a parked car and/or standard door height (~2.1m) somewhere in frame as a human-scale reference so the building's true size reads correctly.
 
 CAMERA:
-${cameraAngle}. Correct perspective, no distortion, professional architectural photography composition.
+${cameraAngle}. Correct perspective, no distortion, professional architectural photography composition. Frame the shot so the entire building fits within the image — do not crop the top, base, or sides.
 
 RENDERING QUALITY:
 Ultra-realistic, PBR textures, global illumination, ambient occlusion, soft shadows, ray-traced reflections. V-Ray / Corona Renderer style. 8K resolution, cinematic realism.
 
 MOOD: Luxury, refined, aspirational. Professional architectural visualization studio quality.
+
+${EXTERIOR_AVOID}
 
 ABSOLUTE RULES:
 • Do NOT redesign or change the building massing
@@ -269,7 +293,9 @@ function buildInteriorPrompt(data: PromptFormData): string {
   }
 
   // ── Assemble interior prompt ──────────────────────────────────
-  const prompt = `${toolPre}Photorealistic interior architectural rendering of a ${interiorStyle} ${roomType}. ${interiorCameraAngle}. Professional interior photography composition, correct perspective, no distortion, verticals perfectly straight.${revitBlock}
+  // Same sandwich as the exterior engine: the spatial constraint is
+  // stated here and again in ABSOLUTE RULES, not just once at the end.
+  const prompt = `${toolPre}Photorealistic interior architectural rendering of a ${interiorStyle} ${roomType}. ${interiorCameraAngle}. Professional interior photography composition, correct perspective, no distortion, verticals perfectly straight. SPACE IS FIXED: ${roomType}, do not add windows, doors or openings beyond what is described below.${revitBlock}
 
 INTERIOR STYLE DIRECTION:
 ${interiorStyle} design language. Premium interior quality, curated material palette, architectural detail and craftsmanship clearly visible.
@@ -302,6 +328,8 @@ RENDERING QUALITY:
 Ultra-realistic, PBR material textures, global illumination, ambient occlusion, ray-traced reflections, soft natural shadows. V-Ray / Corona Interior Renderer style. 8K resolution, professional architectural photography quality.
 
 MOOD: ${interiorStyle} — luxury, refined, aspirational. High-end interior design studio visualization quality.
+
+${INTERIOR_AVOID}
 
 ABSOLUTE RULES:
 • Do NOT change the room type or spatial layout

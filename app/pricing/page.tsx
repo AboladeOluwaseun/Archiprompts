@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabase";
 import AuthModal from "@/components/AuthModal";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const PLANS = [
   {
     name: "FREE",
     tag: "",
-    price: "₦0",
+    price: "$0",
     per: "",
     sub: "3 prompts, then sign-in required",
     feats: [
@@ -20,12 +21,12 @@ const PLANS = [
       "No Render Preview",
     ],
     cta: "Current plan",
-    plan: null as null | "monthly" | "lifetime",
+    plan: null as null | "monthly" | "yearly",
   },
   {
     name: "MONTHLY",
     tag: "",
-    price: "₦100",
+    price: "$8",
     per: "/ month",
     sub: "30-day access, renewed manually",
     feats: [
@@ -39,19 +40,19 @@ const PLANS = [
     plan: "monthly" as const,
   },
   {
-    name: "LIFETIME",
+    name: "YEARLY",
     tag: "BEST VALUE",
-    price: "₦25,000",
-    per: "once",
-    sub: "Permanent, no renewal",
+    price: "$100",
+    per: "/ year",
+    sub: "365-day access, renewed manually",
     feats: [
       "Everything in Monthly",
-      "Permanent access",
+      "2 months free vs. paying monthly",
       "Priority on new render features",
       "Beta testers are on this tier",
     ],
     cta: "Pay with Paystack",
-    plan: "lifetime" as const,
+    plan: "yearly" as const,
   },
 ];
 
@@ -59,7 +60,7 @@ export default function PricingPage() {
   const router = useRouter();
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [showAuth, setShowAuth] = useState(false);
-  const [pendingPlan, setPendingPlan] = useState<"monthly" | "lifetime" | null>(null);
+  const [pendingPlan, setPendingPlan] = useState<"monthly" | "yearly" | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -71,7 +72,7 @@ export default function PricingPage() {
     load();
   }, []);
 
-  const goToUpgrade = (plan: "monthly" | "lifetime") => {
+  const goToUpgrade = (plan: "monthly" | "yearly") => {
     if (!userEmail) {
       setPendingPlan(plan);
       setShowAuth(true);
@@ -81,14 +82,16 @@ export default function PricingPage() {
   };
 
   return (
-    <div className="theme-paper">
     <div className="pricing-page">
-      <Link href="/builder" className="projects-back">
-        ← Back to builder
-      </Link>
+      <div className="page-toolbar">
+        <Link href="/builder" className="projects-back">
+          ← Back to builder
+        </Link>
+        <ThemeToggle />
+      </div>
 
       <div className="lineage-eyebrow">PLANS</div>
-      <h1 className="lineage-title">Pay once, or pay monthly.</h1>
+      <h1 className="lineage-title">Pay monthly, or pay yearly and save.</h1>
       <p className="lineage-sub">
         Prompt building is free forever. Rendering costs money to run, so it sits
         behind the paid tier.
@@ -127,8 +130,7 @@ export default function PricingPage() {
       </div>
 
       <div className="pricing-footnote">
-        <span>Paystack · NGN · signature-verified webhook</span>
-        <span>Prices shown in NGN — no USD equivalent is displayed here</span>
+        <span>Paystack · USD · signature-verified webhook</span>
       </div>
 
       <AuthModal
@@ -140,7 +142,6 @@ export default function PricingPage() {
           if (pendingPlan) router.push(`/builder/upgrade?plan=${pendingPlan}`);
         }}
       />
-    </div>
     </div>
   );
 }

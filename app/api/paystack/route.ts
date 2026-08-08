@@ -56,9 +56,9 @@ export async function POST(req: NextRequest) {
   const email = customer?.email as string;
   const customerCode = customer?.customer_code as string;
   const reference = data.reference as string;
-  const amount = data.amount as number; // in kobo
-  const currency = (data.currency as string) || 'NGN';
-  const plan = amount >= 2500000 ? 'lifetime' : 'monthly'; // ₦25,000 = lifetime
+  const amount = data.amount as number; // in cents
+  const currency = (data.currency as string) || 'USD';
+  const plan = amount >= 5000 ? 'yearly' : 'monthly'; // $50+ = yearly ($100), else monthly ($8)
 
   if (!email || !reference) {
     return NextResponse.json({ error: 'Missing data' }, { status: 400 });
@@ -72,10 +72,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true, demo: true });
   }
 
-  // Calculate plan expiry for monthly
+  // Calculate plan expiry
   const planExpiresAt = plan === 'monthly'
     ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-    : null;
+    : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
 
   // Upsert profile (match by email — user may or may not have auth account yet)
   const { error: profileError } = await supabase

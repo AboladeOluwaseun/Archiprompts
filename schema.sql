@@ -8,8 +8,8 @@
 create table if not exists profiles (
   id                    uuid primary key references auth.users on delete cascade,
   email                 text not null,
-  plan                  text not null default 'free' check (plan in ('free', 'monthly', 'lifetime')),
-  plan_expires_at       timestamptz,          -- null for lifetime/free, date for monthly
+  plan                  text not null default 'free' check (plan in ('free', 'monthly', 'yearly')),
+  plan_expires_at       timestamptz,          -- null for free, date for monthly/yearly
   paystack_customer_code text,
   country_code          text,                 -- for multi-currency routing
   prompts_used          integer not null default 0,  -- free prompt counter
@@ -41,8 +41,8 @@ create table if not exists payments (
   id              uuid primary key default gen_random_uuid(),
   user_id         uuid references profiles (id) on delete cascade,
   paystack_ref    text unique not null,
-  amount          integer not null,         -- in kobo (NGN × 100)
-  currency        text not null default 'NGN',
+  amount          integer not null,         -- in cents (USD × 100)
+  currency        text not null default 'USD',
   plan            text not null,
   status          text not null default 'pending' check (status in ('pending', 'success', 'failed')),
   metadata        jsonb default '{}',       -- raw Paystack event data

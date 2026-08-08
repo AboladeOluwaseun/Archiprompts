@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabase";
 import { fetchHistory, HistoryEntry } from "@/lib/history";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface ProjectGroup {
   name: string | null;
@@ -74,9 +75,12 @@ export default function ProjectsPage() {
 
   return (
     <div className="projects-page">
-      <Link href="/builder" className="projects-back">
-        ← Back to builder
-      </Link>
+      <div className="page-toolbar">
+        <Link href="/builder" className="projects-back">
+          ← Back to builder
+        </Link>
+        <ThemeToggle />
+      </div>
 
       <div className="projects-header">
         <div>

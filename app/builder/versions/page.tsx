@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { fetchHistoryEntryById, HistoryEntry } from "@/lib/history";
 import { fetchRenderVariants, RenderVariant } from "@/lib/renderVariants";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface LineageNode extends RenderVariant {
   depth: number;
@@ -56,9 +57,12 @@ function VersionsPageInner() {
 
   return (
     <div className="lineage-page">
-      <Link href="/builder" className="projects-back">
-        ← Back to Builder
-      </Link>
+      <div className="page-toolbar">
+        <Link href="/builder" className="projects-back">
+          ← Back to builder
+        </Link>
+        <ThemeToggle />
+      </div>
 
       <div className="lineage-eyebrow">
         VERSION LINEAGE{entry?.project_name ? ` · ${entry.project_name.toUpperCase()}` : ""}
