@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { sanitizePromptForImageGen } from "@/lib/promptEngine";
+import { sanitizePromptForImageGen, MAX_IMAGE_PROMPT_CHARS } from "@/lib/promptEngine";
 import { resolveRenderAccess } from "@/lib/renderAccess";
 
 /**
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let imagePrompt = sanitizePromptForImageGen(rawPrompt).slice(0, 4000);
+  let imagePrompt = sanitizePromptForImageGen(rawPrompt).slice(0, MAX_IMAGE_PROMPT_CHARS);
 
   // Pull in prior renders from the same named project (if any) as extra
   // style/material reference images — best-effort, never blocks the

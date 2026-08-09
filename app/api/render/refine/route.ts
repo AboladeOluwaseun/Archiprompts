@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { resolveRenderAccess } from "@/lib/renderAccess";
+import { MAX_IMAGE_PROMPT_CHARS } from "@/lib/promptEngine";
 
 /**
  * Render Refinement Endpoint
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const refinementPrompt = buildRefinementPrompt(instructionsRaw.trim()).slice(0, 4000);
+  const refinementPrompt = buildRefinementPrompt(instructionsRaw.trim()).slice(0, MAX_IMAGE_PROMPT_CHARS);
 
   try {
     const openAiForm = new FormData();

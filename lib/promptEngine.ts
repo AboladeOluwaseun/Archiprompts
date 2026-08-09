@@ -11,6 +11,17 @@
 
 import { MaterialAssignment, PromptFormData } from './types';
 
+// Prompts sent to the image API are truncated to this length. Was 4000
+// (duplicated separately at each call site) until the eval loop caught
+// it slicing mid-word through the ABSOLUTE RULES block on moderately
+// complex prompts — e.g. cutting "Fins are SOLID — do not re[nder as
+// glass]" for a case specifically testing that fins don't render as
+// glass. gpt-image-2 accepts far longer prompts than this; 8000 keeps
+// real headroom above what this app's forms can actually produce
+// (worst-case multi-zone + fins + slabs cases run ~4-5k chars) without
+// approaching whatever the model's real ceiling is.
+export const MAX_IMAGE_PROMPT_CHARS = 8000;
+
 // Renders a zone→material list as an explicit schedule the AI can follow
 // per-location, instead of a flat list with no spatial meaning. Each line
 // repeats "ONLY" and "hard edge" — material bleeding across zone

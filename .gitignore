@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# eval loop output (generated renders/prompts — not source, don't bloat the repo)
+/eval-runs/
