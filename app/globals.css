@@ -107,15 +107,14 @@ body {
   overflow-x: hidden;
 }
 
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0.025;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
-}
+/* A fixed, viewport-covering feTurbulence noise overlay used to sit
+   here for a subtle 2.5%-opacity grain effect. Removed: SVG
+   feTurbulence filters (numOctaves:4) are a well-known Chromium jank
+   source, and this one sat at z-index:9999 — directly on top of every
+   image and button in the app, including the render preview. Reported
+   symptom: hovering the generated image made the page unresponsive
+   for 10-15+ seconds. The decorative value wasn't worth that risk.
+*/
 
 /* ─── HEADER ─────────────────────────────────────────────────── */
 .hdr {
