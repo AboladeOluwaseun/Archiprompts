@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { RenderVariant } from "@/lib/renderVariants";
 
@@ -19,8 +19,6 @@ interface OutputPanelProps {
   rendering: boolean;
   renderError: string | null;
   failureType: FailureType;
-  renderStage: number;
-  renderElapsed: number;
   onCancelRender: () => void;
   onRetryRender: () => void;
   onRenderPreview: () => void;
@@ -117,8 +115,6 @@ export default function OutputPanel({
   rendering,
   renderError,
   failureType,
-  renderStage,
-  renderElapsed,
   onCancelRender,
   onRetryRender,
   onRenderPreview,
@@ -142,6 +138,35 @@ export default function OutputPanel({
   const [customInstructions, setCustomInstructions] = useState("");
   const [activeTab, setActiveTab] = useState<"prompt" | "render">("prompt");
   const [refineOpen, setRefineOpen] = useState(false);
+
+  // Local to this component on purpose: this used to live as state in
+  // the parent BuilderPage, where every once-a-second tick forced the
+  // entire form (all blocks, every select) to re-render for the whole
+  // 12-40s a render takes — measurably expensive with nothing in that
+  // tree memoized, and the likely cause of the page becoming
+  // unresponsive right around when a render completes. Keeping it here
+  // means a tick only re-renders this panel.
+  const [renderElapsed, setRenderElapsed] = useState(0);
+  const renderTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const renderStage = Math.min(3, Math.floor(renderElapsed / 4));
+
+  useEffect(() => {
+    if (rendering) {
+      setRenderElapsed(0);
+      renderTimerRef.current = setInterval(() => {
+        setRenderElapsed((prev) => prev + 1);
+      }, 1000);
+    } else if (renderTimerRef.current) {
+      clearInterval(renderTimerRef.current);
+      renderTimerRef.current = null;
+    }
+    return () => {
+      if (renderTimerRef.current) {
+        clearInterval(renderTimerRef.current);
+        renderTimerRef.current = null;
+      }
+    };
+  }, [rendering]);
 
   const activeVariant = variants.find((v) => v.id === activeVariantId);
 

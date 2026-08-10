@@ -70,11 +70,15 @@ function BuilderPage() {
   const [failureType, setFailureType] = useState<
     "timeout" | "reference" | "plan" | "cancelled" | "generic" | null
   >(null);
-  const [renderStage, setRenderStage] = useState(0);
-  const [renderElapsed, setRenderElapsed] = useState(0);
+  // renderStage/renderElapsed used to live here as ticking state, but
+  // that meant every once-a-second tick during a 12-40s render forced
+  // this entire component (all 8 form blocks, every select) to
+  // re-render — nothing here is memoized, so that's expensive, and it
+  // was compounding right up until the final image landed, which is
+  // exactly when users reported the page becoming unresponsive. Moved
+  // to local state inside OutputPanel, which only re-renders itself.
   const [projectRefsUsed, setProjectRefsUsed] = useState(0);
   const renderAbortRef = useRef<AbortController | null>(null);
-  const renderTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [refining, setRefining] = useState(false);
   const [refineError, setRefineError] = useState<string | null>(null);
   const [variants, setVariants] = useState<RenderVariant[]>([]);
@@ -109,7 +113,6 @@ function BuilderPage() {
 
   useEffect(() => {
     return () => {
-      if (renderTimerRef.current) clearInterval(renderTimerRef.current);
       renderAbortRef.current?.abort();
     };
   }, []);
@@ -472,13 +475,6 @@ function BuilderPage() {
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const clearRenderTimer = () => {
-    if (renderTimerRef.current) {
-      clearInterval(renderTimerRef.current);
-      renderTimerRef.current = null;
-    }
-  };
-
   const handleCancelRender = () => {
     renderAbortRef.current?.abort();
   };
@@ -498,22 +494,9 @@ function BuilderPage() {
     setRendering(true);
     setRenderError(null);
     setFailureType(null);
-    setRenderStage(0);
-    setRenderElapsed(0);
 
     const controller = new AbortController();
     renderAbortRef.current = controller;
-
-    // Cosmetic stage labels over a real in-flight request — advances on
-    // elapsed time, but is cleared and finalized the instant the actual
-    // fetch resolves rather than on a fixed fake duration.
-    renderTimerRef.current = setInterval(() => {
-      setRenderElapsed((prev) => {
-        const next = prev + 1;
-        setRenderStage(Math.min(3, Math.floor(next / 4)));
-        return next;
-      });
-    }, 1000);
 
     try {
       const sb = getSupabaseBrowser();
@@ -582,7 +565,6 @@ function BuilderPage() {
         setFailureType("generic");
       }
     } finally {
-      clearRenderTimer();
       renderAbortRef.current = null;
       setRendering(false);
     }
@@ -1316,8 +1298,6 @@ function BuilderPage() {
               rendering={rendering}
               renderError={renderError}
               failureType={failureType}
-              renderStage={renderStage}
-              renderElapsed={renderElapsed}
               onCancelRender={handleCancelRender}
               onRetryRender={handleRenderPreview}
               onRenderPreview={handleRenderPreview}
