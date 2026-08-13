@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseServer } from "@/lib/supabase";
+import { TESTERS_GET_PRO_FREE } from "@/lib/testingConfig";
 
 /**
  * Shared Pro-gating for anything that spends real OpenAI image credit
@@ -28,6 +29,10 @@ export async function resolveRenderAccess(
   const { data: userData, error: userError } = await supabase.auth.getUser(token);
   if (userError || !userData?.user) {
     return { ok: false, reason: "Your session has expired — please sign in again." };
+  }
+
+  if (TESTERS_GET_PRO_FREE) {
+    return { ok: true, userId: userData.user.id, supabase };
   }
 
   const { data: profile, error: profileError } = await supabase

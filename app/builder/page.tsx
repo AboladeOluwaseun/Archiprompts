@@ -8,6 +8,7 @@ import { buildPrompt } from "@/lib/promptEngine";
 import { getSupabaseBrowser } from "@/lib/supabase";
 import { DEFAULT_BUILDER_OPTIONS, BuilderOptions } from "@/lib/formOptions";
 import { PRESETS, applyPreset, Preset } from "@/lib/presets";
+import { TESTERS_GET_PRO_FREE } from "@/lib/testingConfig";
 
 import SelectField from "@/components/SelectField";
 import ChipGroup from "@/components/ChipGroup";
@@ -193,7 +194,7 @@ function BuilderPage() {
 
       if (error || !profile) {
         setUserEmail(email);
-        setIsPro(false);
+        setIsPro(TESTERS_GET_PRO_FREE);
         setUsed(0);
         setLoading(false);
         return;
@@ -201,7 +202,9 @@ function BuilderPage() {
 
       setUsed(profile.prompts_used);
 
-      if (profile.plan === "free") {
+      if (TESTERS_GET_PRO_FREE) {
+        setIsPro(true);
+      } else if (profile.plan === "free") {
         setIsPro(false);
       } else if (profile.plan_expires_at) {
         const expired = new Date(profile.plan_expires_at) < new Date();
